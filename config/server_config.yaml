@@ -1,0 +1,10 @@
+server:
+  name: "test_server"
+  output_path: "output/test_server.csv"
+  listeners:
+    - protocol: "tcp"
+      port: 6060
+  metric_collection:
+    interval_sec: 1
+    metrics:
+      - throughput

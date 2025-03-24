@@ -1,0 +1,50 @@
+# Derleme çıktıları
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.lib
+*.exe
+*.out
+
+# Derleme klasörleri
+build/
+build-*/
+cmake-build-*/
+
+# CMake dosyaları
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# IDE dosyaları
+.idea/
+.vscode/
+
+# Geçici / geçici dosyalar
+*.tmp
+*.swp
+*.swo
+*~
+
+# OS sistem dosyaları
+.DS_Store
+Thumbs.db
+
+# Log dosyaları
+*.log
+
+# Profiling / coverage / test çıktıları
+*.profraw
+*.gcda
+*.gcno
+*.gcov
+valgrind-out.*
+
+# JSON ve diğer çıktı dosyaları (opsiyonel)
+*.json
+
+# Konfigürasyon dosyaları (eğer runtime'da kopyalanacaksa dışarıda tut)
+config/

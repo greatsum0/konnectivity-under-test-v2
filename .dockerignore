@@ -48,3 +48,9 @@ valgrind-out.*
 
 # Konfigürasyon dosyaları (eğer runtime'da kopyalanacaksa dışarıda tut)
 config/
+
+# external klasörü dahil edilmeli
+!.gitmodules
+!external/yaml-cpp/**
+!external/asio/**
+

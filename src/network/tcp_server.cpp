@@ -46,9 +46,13 @@ void TcpServer::readData() {
 
                     if (auto manager = context_.metricCollector->getManager()) {
                         manager->printTable();
-                        manager->saveAsCSV(context_.config.output_path);
+                        // append timestamp to the output file
+                        const auto timestamp = std::to_string(std::time(nullptr));
+                        manager->saveAsCSV(timestamp + "_" +context_.config.output_path);
                     }
                 }
+                // clear the metric collector
+                context_.metricCollector->reset();
                 this->acceptConnection();
             }
         });

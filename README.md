@@ -270,6 +270,231 @@ k8s-deployment/
 
 ---
 
+# 📡 KUT Traffic Scenario Configuration Guide
+
+This document explains how to configure traffic test scenarios for the `kut-tester` application using a YAML file. It supports various traffic patterns, metrics, and network protocols.
+
+---
+
+## 🔁 General Structure
+
+Each test scenario is defined under the `scenarios` list in the YAML file. A single scenario contains the following sections:
+
+```yaml
+- name: "scenario_name"
+  output_path: "output/result.csv"
+  network:
+    protocol: "tcp" | "udp"
+    server_address: "IP address"
+    server_port: PORT
+  traffic_pattern:
+    type: "traffic_type"
+    duration_sec: TEST_DURATION
+    interval_sec: SEND_INTERVAL
+    parameters:
+      ...
+  metric_collection:
+    interval_sec: METRIC_INTERVAL
+    metrics:
+      - metric1
+      - metric2
+```
+
+---
+
+## 🌐 Network Section
+
+| Field            | Description                                  |
+|------------------|----------------------------------------------|
+| `protocol`       | Must be either `tcp` or `udp`.               |
+| `server_address` | The server IP address to connect to.         |
+| `server_port`    | The port number the server is listening on.  |
+
+---
+
+## 🚦 Traffic Pattern Types
+
+Each traffic pattern type has a specific behavior and set of parameters under `parameters`.
+
+### 1. `constant`
+
+Sends traffic at a fixed data rate.
+
+**Required Parameters:**
+- `rate_mbps`: Constant traffic rate in Mbps.
+
+---
+
+### 2. `burst`
+
+Sends a steady stream (`rate_mbps`) overlaid with periodic bursts.
+
+**Parameters:**
+- `rate_mbps`: Base traffic rate.
+- `burst_size_mb`: Size of each burst in megabytes.
+- `burst_duration_sec`: Duration of each burst.
+- `burst_interval_sec`: Time between bursts.
+
+---
+
+### 3. `pure_burst`
+
+Only sends data in bursts, no base traffic.
+
+**Parameters:**
+- `burst_size_mb`
+- `burst_duration_sec`
+- `burst_interval_sec`
+
+---
+
+### 4. `random_burst`
+
+Sends bursts with randomized size, duration, and intervals.
+
+**Parameters:**
+- `random_seed`: For reproducibility.
+- `min_burst_size_mb`, `max_burst_size_mb`
+- `min_burst_duration_ms`, `max_burst_duration_ms`
+- `min_burst_interval_ms`, `max_burst_interval_ms`
+
+---
+
+## 📊 Metric Collection
+
+This section configures how metrics are collected during the scenario.
+
+| Field           | Description                                     |
+|------------------|-------------------------------------------------|
+| `interval_sec`  | How often (in seconds) to collect metrics.      |
+| `metrics`       | List of metric names to collect.                |
+
+**Available Metrics:**
+- `throughput`: Measured traffic throughput (Mbps)
+- `total_cpu_util`: System-wide CPU usage
+- `tool_cpu_util`: CPU usage of the testing tool
+- `total_cpu_util_norm`: Normalized CPU usage of the tool (tool cpu util / num cores)
+
+---
+
+## ✅ Example Scenarios
+
+### Constant Traffic
+```yaml
+traffic_pattern:
+  type: "constant"
+  duration_sec: 5
+  interval_sec: 1.0
+  parameters:
+    rate_mbps: 1000
+```
+
+### Ramp-Up Traffic
+```yaml
+parameters:
+  rate_mbps: 1000
+  ramp_up_time: 3
+```
+
+### Ramp-Down Traffic
+```yaml
+parameters:
+  rate_mbps: 1000
+  ramp_down_time: 3
+```
+
+### Sinusoidal Traffic
+```yaml
+parameters:
+  rate_mbps: 800
+  amplitude: 10
+  frequency: 0.20
+```
+
+### Random Traffic
+```yaml
+parameters:
+  random_seed: 123
+  max_rate_mbps: 1000
+```
+
+### Burst Traffic
+```yaml
+parameters:
+  rate_mbps: 500
+  burst_size_mb: 80
+  burst_duration_sec: 2
+  burst_interval_sec: 3
+```
+
+### Pure Burst Traffic
+```yaml
+parameters:
+  burst_size_mb: 80
+  burst_duration_sec: 2
+  burst_interval_sec: 3
+```
+
+### Random Burst Traffic
+```yaml
+parameters:
+  random_seed: 123
+  min_burst_size_mb: 10
+  max_burst_size_mb: 100
+  min_burst_duration_ms: 1000
+  max_burst_duration_ms: 3000
+  min_burst_interval_ms: 2000
+  max_burst_interval_ms: 5000
+```
+
+---
+
+## ⚠️ Notes
+
+- All optional traffic parameters are ignored if irrelevant for the chosen `type`.
+- Ensure the directory in `output_path` exists.
+- Be cautious when setting a very small `interval_sec`, as it may lead to high system load.
+- `parameters` is flexible and can hold values for multiple pattern types. Only the ones relevant to the current `type` are used.
+
+---
+
+## 🛠️ Advanced Use Cases
+
+You can define multiple scenarios in the same file to run sequential tests with different traffic types or network conditions.
+
+```yaml
+scenarios:
+  - name: "scenario_constant"
+    ...
+    traffic_pattern:
+      type: "constant"
+    ...
+  - name: "scenario_burst"
+    ...
+    traffic_pattern:
+      type: "burst"
+    ...
+  - name: "scenario_random_burst"
+    ...
+    traffic_pattern:
+      type: "random_burst"
+    ...
+```
+
+---
+
+## 📂 Output
+
+Each scenario writes its results to the `output_path` in CSV format. This includes the collected metrics over time, which can be analyzed using tools like Excel, Pandas, or visualization software.
+
+---
+
+## 🔄 Future Extensions
+
+- Support for `RTT`, `latency` and more advanced network metrics.
+
+---
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.

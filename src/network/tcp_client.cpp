@@ -7,10 +7,17 @@ TcpClient::TcpClient(asio::io_context &io_context, std::string host, const int p
 }
 
 void TcpClient::connect() {
-    const auto endpoints = resolver_.resolve(host_, std::to_string(port_));
-    asio::connect(socket_, endpoints);
-    std::cout << "Connected to " << host_ << ":" << port_ << std::endl;
+    try {
+        const auto endpoints = resolver_.resolve(host_, std::to_string(port_));
+        asio::connect(socket_, endpoints);
+        std::cout << "Connected to " << host_ << ":" << port_ << std::endl;
+    } catch (const std::system_error& e) {
+        std::cerr << "[ERROR] Failed to connect to " << host_ << ":" << port_
+                  << " - " << e.what() << std::endl;
+        throw;
+    }
 }
+
 
 void TcpClient::sendMessage(const std::string &message) {
     if (!socket_.is_open()) {

@@ -108,6 +108,15 @@ double MetricCollector::getTotalCPUUsage() {
 #endif
 }
 
+// function that normalizes process CPU usage
+double MetricCollector::getNormalizedProcessCPUUsage() const {
+    double toolCPU = getProcessCPUUsage();
+    int numCores = sysconf(_SC_NPROCESSORS_ONLN);
+    if(numCores > 0)
+        return toolCPU / numCores;
+    return toolCPU;
+}
+
 double MetricCollector::getProcessCPUUsage() const {
     struct rusage usage{};
     getrusage(RUSAGE_SELF, &usage);
@@ -139,28 +148,19 @@ void MetricCollector::measure() {
 
             if (isMetricEnabled("total_cpu_util")) {
                 double totalCPU = getTotalCPUUsage();
-                std::cout << "[Metric] Time: " << static_cast<int>(elapsed_sec_)
-                          << " sec | Total CPU: " << std::fixed << std::setprecision(2)
-                          << totalCPU << " %" << std::endl;
-
                 dataManager_.addMetricValue("total_cpu_util", elapsed_sec_, totalCPU);
             }
 
             if (isMetricEnabled("tool_cpu_util")) {
                 double procCPU = getProcessCPUUsage();
-                std::cout << "[Metric] Time: " << std::fixed << std::setprecision(2)
-                          << elapsed_sec_ << " sec | Tool CPU: "
-                          << procCPU << " %" << std::endl;
-
+                int numCores = sysconf(_SC_NPROCESSORS_ONLN);
+                double normalizedProcCPU = (numCores > 0) ? procCPU / numCores : procCPU;
                 dataManager_.addMetricValue("tool_cpu_util", elapsed_sec_, procCPU);
+                dataManager_.addMetricValue("tool_cpu_util_norm", elapsed_sec_, normalizedProcCPU);
             }
 
             if (isMetricEnabled("throughput")) {
                 double throughput_mbps = (bytesTransferred_ * 8.0) / (interval_sec_ * 1'000'000);
-                std::cout << "[Metric] Time: " << std::fixed << std::setprecision(2)
-                          << elapsed_sec_ << " sec | Throughput: "
-                          << throughput_mbps << " Mbps" << std::endl;
-
                 dataManager_.addMetricValue("throughput", elapsed_sec_, throughput_mbps);
             }
 

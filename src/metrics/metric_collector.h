@@ -23,6 +23,9 @@ private:
     [[nodiscard]] bool isMetricEnabled(const std::string& name) const;
 
     double getTotalCPUUsage();
+
+    double getNormalizedProcessCPUUsage() const;
+
     [[nodiscard]] double getProcessCPUUsage() const;
 
     asio::steady_timer timer_;

@@ -4,7 +4,9 @@
 #include <sstream>
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 
+namespace fs = std::filesystem;
 
 MetricDataManager::MetricDataManager(std::vector<std::string> enabledMetrics)
     : enabledMetrics_(std::move(enabledMetrics)) {}
@@ -43,6 +45,17 @@ void MetricDataManager::printTable() const {
 }
 
 void MetricDataManager::saveAsCSV(const std::string& filepath) const {
+    // 👇 create the directory if it doesn't exist
+    try {
+        fs::path dir = fs::path(filepath).parent_path();
+        if (!dir.empty() && !fs::exists(dir)) {
+            fs::create_directories(dir);
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "[Error] Failed to create directory for " << filepath << ": " << e.what() << "\n";
+        return;
+    }
+
     std::ofstream out(filepath);
     if (!out.is_open()) {
         std::cerr << "[Error] Could not open file: " << filepath << "\n";

@@ -19,6 +19,7 @@ public:
     void printTable() const;
     void saveAsCSV(const std::string& filepath) const;
     bool isMetricEnabled(const std::string& name) const;
+    void clear();
 
 private:
     std::vector<std::string> enabledMetrics_;

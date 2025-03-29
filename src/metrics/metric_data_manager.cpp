@@ -82,3 +82,7 @@ void MetricDataManager::saveAsCSV(const std::string& filepath) const {
     out.close();
     std::cout << "[INFO] Data successfully saved to " << filepath << "\n";
 }
+
+void MetricDataManager::clear() {
+    records_.clear();
+}

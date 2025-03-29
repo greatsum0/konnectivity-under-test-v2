@@ -17,6 +17,7 @@ public:
     void stop();
     void addBytesTransferred(int bytes);
     [[nodiscard]] std::shared_ptr<MetricDataManager> getManager() const;
+    void reset();
 
 private:
     void measure();

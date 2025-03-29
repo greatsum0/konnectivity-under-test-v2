@@ -169,3 +169,9 @@ void MetricCollector::measure() {
         }
     });
 }
+
+void MetricCollector::reset() {
+    bytesTransferred_ = 0;
+    elapsed_sec_ = 0.0;
+    dataManager_.clear();
+}

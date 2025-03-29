@@ -49,6 +49,8 @@ valgrind-out.*
 # Konfigürasyon dosyaları (eğer runtime'da kopyalanacaksa dışarıda tut)
 config/
 
+k3s-deployment/
+
 # external klasörü dahil edilmeli
 !.gitmodules
 !external/yaml-cpp/**

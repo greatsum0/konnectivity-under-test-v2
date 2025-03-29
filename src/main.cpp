@@ -45,37 +45,47 @@ void runClient(const std::string &configPath) {
         return;
     }
 
-    asio::io_context ioContext;
-    ClientContext ctx = ClientContext::fromScenario(ioContext, scenarios[0]);
+    for (const auto& scenario : scenarios) {
+        asio::io_context ioContext;
+        ClientContext ctx = ClientContext::fromScenario(ioContext, scenario);
 
-    // appropriate client selection
-    std::shared_ptr<INetworkClient> client;
-    if (ctx.protocol() == "tcp") {
-        auto tcpClient = std::make_shared<TcpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
-        tcpClient->connect();  // connect for tcp
-        client = tcpClient;
-    } else if (ctx.protocol() == "udp") {
-        client = std::make_shared<UdpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
-    } else {
-        std::cerr << "Unsupported protocol: " << ctx.protocol() << std::endl;
-        return;
+        std::cout << "Running scenario: " << scenario.name << std::endl;
+
+        std::shared_ptr<INetworkClient> client;
+        try {
+            if (ctx.protocol() == "tcp") {
+                auto tcpClient = std::make_shared<TcpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
+                tcpClient->connect();  // catch the connection error here
+                client = tcpClient;
+            } else if (ctx.protocol() == "udp") {
+                client = std::make_shared<UdpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
+            } else {
+                std::cerr << "[ERROR] Unsupported protocol: " << ctx.protocol() << std::endl;
+                continue;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Scenario \"" << scenario.name << "\" skipped due to connection failure." << std::endl;
+            continue;  // skip this scenario and continue with the next one
+        }
+
+        auto sendFunc = [client](const std::string &data) {
+            client->sendMessage(data);
+        };
+
+        auto trafficPattern = TrafficPatternFactory::createTrafficPattern(ctx, sendFunc);
+        if (!trafficPattern) {
+            std::cerr << "[ERROR] Failed to create traffic pattern for type: "
+                      << ctx.scenario.traffic_type << std::endl;
+            continue;
+        }
+
+        trafficPattern->start();
+        ioContext.run();
+
+        std::cout << "Finished scenario: " << scenario.name << "\n" << std::endl;
     }
-
-    // Sending traffic function
-    auto sendFunc = [client](const std::string &data) {
-        client->sendMessage(data);
-    };
-
-    // create the traffic pattern and start it
-    auto trafficPattern = TrafficPatternFactory::createTrafficPattern(ctx, sendFunc);
-    if (!trafficPattern) {
-        std::cerr << "Failed to create traffic pattern for type: " << ctx.scenario.traffic_type << std::endl;
-        return;
-    }
-
-    trafficPattern->start();
-    ioContext.run();
 }
+
 
 
 

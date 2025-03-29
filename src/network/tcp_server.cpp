@@ -49,7 +49,7 @@ void TcpServer::readData() {
                         manager->saveAsCSV(context_.config.output_path);
                     }
                 }
-
+                this->acceptConnection();
             }
         });
 }

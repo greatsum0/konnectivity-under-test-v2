@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kut-client-config
+  namespace: kut-app
+data:
+  client_configs.yaml: |
+    scenarios:
+      - name: "test_scenario_tcp"
+        output_path: "/measurements/data/test_client.csv"
+        network:
+          protocol: "tcp"                      # veya "udp"
+          server_address: "kut-server"         # Service DNS adı (dinamik)
+          server_port: 23456
+
+        traffic_pattern:
+          type: "constant"
+          duration_sec: 3
+          interval_sec: 1.0
+          parameters:
+            # Base rate
+            rate_mbps: 1000
+            max_rate_mbps: 50
+
+            # Ramp settings
+            ramp_up_time: 10
+            ramp_down_time: 10
+
+            # Sinusoidal modifiers
+            amplitude: 2.5
+            frequency: 0.20
+
+            # Burst settings
+            burst_size_mb: 80
+            burst_duration_sec: 2
+            burst_interval_sec: 3
+            min_burst_size_mb: 10
+            max_burst_size_mb: 100
+            min_burst_duration_ms: 1000
+            max_burst_duration_ms: 3000
+            min_burst_interval_ms: 2000
+            max_burst_interval_ms: 5000
+
+            # Randomization
+            random_seed: 123
+
+        metric_collection:
+          interval_sec: 1.0
+          metrics:
+            - total_cpu_util
+            - tool_cpu_util

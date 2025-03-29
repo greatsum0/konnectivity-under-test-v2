@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kut-server-config
+  namespace: kut-app
+data:
+  server_config.yaml: |
+    server:
+      name: "test_server"
+      output_path: "/measurements/data/test_client.csv"
+      listeners:
+        - protocol: "tcp"
+          port: 23456
+      metric_collection:
+        interval_sec: 1
+        metrics:
+          - throughput

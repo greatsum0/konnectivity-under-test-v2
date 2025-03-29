@@ -1,108 +1,274 @@
+
 # Konnectivity Under Test (KUT)
 
-This project is a C++ command-line tool designed to measure network performance metrics such as throughput, latency, and CPU usage under various traffic conditions. The tool supports both client and server modes, enabling comprehensive network testing in diverse scenarios.
+Konnectivity Under Test (KUT) is a modular C++ benchmarking tool designed to simulate network traffic and measure performance characteristics under controlled test environments. It supports both **server** and **client** modes and is built with deployment flexibility in mind, including integration with Kubernetes (`k3s`) clusters.
 
-## Features
+---
 
-- **Client and Server Modes:**
-    - `server` mode to receive traffic.
-    - `client` mode to generate and send traffic to a specified server.
-- **Traffic Shaping:** Supports different traffic shapes for better simulation of real-world scenarios.
-- **Metrics Collection:** Measures various network performance metrics, specified via a comma-separated list.
-- **Protocol Support:** Supports both TCP and UDP protocols.
-- **Logging and Verbosity:** Optional logging to a file and adjustable verbosity levels for detailed output.
-- **Command-Line Argument Parsing:** Extensive support for command-line arguments for flexibility and configurability.
+## 🚀 Features
 
-## Command-Line Arguments
+- **Dual Modes**: Run as either a traffic-generating client or a traffic-receiving server
+- **Protocol Support**: TCP and UDP
+- **Traffic Patterns**: Constant, burst, sinusoidal, random, ramp-up/down
+- **Metrics Collection**: Configurable performance metrics like CPU usage, packet stats, throughput
+- **Scenario Configuration**: YAML-based setup for repeatable test environments
+- **Modular CLI Interface**: Fine-grained control via command-line arguments
+- **Dockerized**: Ready to be built and deployed as a container image
 
-| Short Option | Long Option        | Description                                                 | Required          |
-|--------------|--------------------|-------------------------------------------------------------|--------------------|
-| `-m`         | `--mode`           | Mode of operation (`server` or `client`).                   | Yes                |
-| `-s`         | `--server`         | Server IP address (required in `client` mode).              | Yes (in client)    |
-| `-p`         | `--port`           | Port number (range: 1024–65535).                            | Yes                |
-| `-v`         | `--verbose`        | Enable verbose logging.                                     | No                 |
-| `-f`         | `--file`           | Log file path.                                              | No                 |
-| `-d`         | `--duration`       | Duration of the experiment in seconds (required in `client` mode). | Yes (in client) |
-| `-i`         | `--interval`       | Data logging interval in seconds (default: 1s).             | No                 |
-| `-r`         | `--rate`           | Bandwidth rate in Mbps (required in `client` mode).         | Yes (in client)    |
-| `-t`         | `--traffic-shape`  | Traffic shape (e.g., constant).                             | No                 |
-| `-l`         | `--metric-list`    | Comma-separated list of metrics to measure (e.g., throughput, latency). | Yes         |
-|              | `--protocol`       | Protocol to use (`tcp` or `udp`, default: `tcp`).           | No                 |
-| `-h`         | `--help`           | Show help message.                                          | No                 |
+---
 
-### Usage Examples
+## 🏗️ Building the Project
 
-#### Server Mode
+### 🔧 Prerequisites
+
+- C++20 compatible compiler
+- CMake >= 3.20
+
+### ⚙️ Build Instructions
 
 ```bash
-./kut -m server -p 8080
+git clone <repo-url>
+cd konnectivity-under-test
+mkdir build && cd build
+cmake ..
+make
 ```
 
-#### Client Mode
+This builds the `kut` executable with:
+- C++20 standard
+- Header-only ASIO (standalone, no Boost)
+- Integrated `yaml-cpp` (via `external/yaml-cpp`)
+- Modular code from `src/network`, `src/traffic`, `src/metrics`, `src/config`, `src/utils`
 
-```bash
-./kut -m client -s 192.168.1.1 -p 8080 -d 60 -r 100 -l throughput,latency --protocol tcp
+The resulting binary will be located in the `build/` directory.
+
+---
+
+## 🔄 GitHub Actions & CI/CD
+
+A GitHub Actions workflow builds the KUT application when code is pushed to the `release` branch:
+
+- 🛠️ Builds the C++ binary using the above CMake config
+- 📦 Packages it into a Docker image
+- 🚀 Pushes to a private Docker registry
+
+This enables streamlined, hands-off deployment across distributed nodes.
+
+---
+
+## 🧠 Deployment Architecture
+
+The KUT system is deployed on a 3-node Raspberry Pi `k3s` cluster:
+
+- **pi-c**: master node, runs orchestration logic and CLI tools
+- **pi-a**: worker node, runs the client Pod (benchmark generator)
+- **pi-b**: worker node, runs the server Pod (traffic receiver)
+
+Deployment is fully automated using:
+
+- `Kustomize` for manifest management and image override
+- `kubectl apply -k .` for resource provisioning
+- Shell scripts for lifecycle management
+
+---
+
+## 🧪 Test Flow Overview
+
+1. `kut-server` runs as a `Deployment`
+2. `kut-client` runs as a one-shot `Job`
+3. Server exposes a `ClusterIP` service used by the client
+4. Both share PVCs for test data export and logs
+5. `pvc-viewer` Pod helps inspect results
+
+---
+
+## 📂 Repo Structure
+
+```
+.
+├── src/                  # C++ source files (modular)
+│   ├── network/
+│   ├── traffic/
+│   ├── metrics/
+│   ├── config/
+│   └── utils/
+├── external/             # Third-party libraries (ASIO, yaml-cpp)
+├── config/               # YAML configMaps (client & server)
+├── deployments/          # Deployment & Job manifests
+├── service/              # ClusterIP service for server
+├── tools/                # PVC viewer
+├── scripts/              # Shell automation (auth, deploy, status)
+├── CMakeLists.txt
+├── kustomization.yaml
+├── utils.sh
+└── .env                  # Auth + namespace config (ignored by git)
 ```
 
-## Building the Project
+---
 
-### Prerequisites
+## 📊 Diagrams
 
-- A C++17 compatible compiler.
-- CMake version 3.10 or higher.
-
-### Build Instructions
-
-1. Clone the repository:
-
-   ```bash
-   git clone <repo-url>
-   cd konnectivity-under-test
-   ```
-
-2. Create a build directory and navigate to it:
-
-   ```bash
-   mkdir build && cd build
-   ```
-
-3. Run CMake and build the project:
-
-   ```bash
-   cmake ..
-   make
-   ```
-
-4. The executable `kut` will be generated in the `build` directory.
-
-## Code Structure
-
-## Error Handling
-
-The application performs comprehensive error checking on the command-line arguments:
-
-- Ensures required arguments are provided (`mode`, `port`, etc.).
-- Validates numeric ranges for arguments like `port` (1024–65535), `duration`, `interval`, and `rate`.
-- Provides detailed error messages and usage instructions for incorrect or missing arguments.
-
-## GitHub Actions
-A CI/CD pipeline and a lightweight Kubernetes setup (`k3s`) is provided to build, package, and deploy the kut application across a fleet of Raspberry Pi devices in this framework.
-
-## Development & CI/CD
-Development happens on a local machine, and all code changes are pushed to GitHub. When updates are merged into the branch named `release`, a GitHub Actions workflow triggers automatically. It builds the application, creating a Docker image, and pushes it to a private Docker registry.
+### 🧱 Dev & CI/CD Workflow
 
 ![Development Process](./readme_assets/development-process.png)
 
-## Deployment Architecture
-The `k3s` cluster is consist of three Raspberry Pi devices:
-
-- `pi-c` acts as the master node and handles orchestration.
-- `pi-a` runs as the client pod.
-- `pi-b` runs as the server pod.
-
-Deployment is managed directly from `pi-c` using a `deployment.yaml` file. Both the client and server run from the same Docker image, with different cli arguments applied at runtime.
+### 📡 Deployment Architecture
 
 ![Deployment Process](./readme_assets/basic-infra-measurement.png)
+
+---
+
+# KUT Konnectivity Under Test - Kubernetes Deployment
+
+This repository contains a fully automated deployment system for a test/benchmark application called **KUT**, running on a lightweight Kubernetes distribution (`k3s`).
+
+It consists of the following components:
+
+- ⚙️ `kut-server` - A long-running server component (TCP/UDP listener)
+- 🧪 `kut-client` - A one-shot benchmark/test client executed as a Kubernetes Job
+- 📂 `PVC Viewer` - A small utility Pod to inspect shared Persistent Volume Claims
+- 🔁 `Kustomize` - Used for image overrides, environment setup, and clean configuration layering
+
+---
+
+## 🌐 Architecture Overview
+
+```
+                      +--------------------+
+                      |    kut-server      |
+                      | (TCP/UDP listener) |
+                      +---------+----------+
+                                ^
+                                |
+                                |   ClusterIP Service (DNS: `kut-server`)
+                                |
+                      +---------v----------+
+                      |    kut-client      |
+                      |  (Job, one-shot)   |
+                      +--------------------+
+```
+
+- The server runs as a **Deployment**
+- The client runs as a **Job**, and can be re-triggered anytime
+- All components share PVCs (data output/input)
+
+---
+
+## 📦 Deployment Features
+
+- 🧠 Built for `k3s`, using `local-path` storage
+- 🔐 Docker image auth via `kut-regcred` secret (loaded from `.env`)
+- 🔧 Configuration via `ConfigMaps`
+- 📜 Kustomize used for:
+    - Setting image names/tags
+    - Managing all resources cleanly
+- 🛠️ Scripts (`*.sh`) for full lifecycle: deploy, reset, rerun, status, auth...
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone and prepare:
+```bash
+git clone <url-to-this-repo>
+cd repo
+```
+
+### 2. Fill in your `.env` file:
+```env
+AUTH_USERNAME=your-dockerhub-username
+AUTH_TOKEN=your-dockerhub-token
+NAMESPACE=kut-app
+```
+
+### 3. Deploy everything:
+```bash
+./run.sh
+```
+
+This runs:
+- `reset.sh` → deletes previous cluster setup
+- `auth.sh` → creates the image pull secret
+- `deploy.sh` → applies everything using Kustomize
+
+---
+
+## 🔁 Rerunning only the client
+
+To rerun just the `kut-client` Job (e.g. new config, or repeat test):
+
+```bash
+./rerun-client.sh
+```
+
+This will:
+- Delete the old Job (if it exists)
+- Re-apply the manifests using Kustomize
+- Trigger a new test run
+- The configuration file for client can be updated in `config/client-config.yaml`
+
+---
+
+## 📋 Status Check
+
+To inspect current state of the namespace:
+
+```bash
+./status.sh
+```
+
+Outputs info about:
+- Pods, Jobs, PVCs, Services, Events, etc.
+
+---
+
+## 🔄 Reset
+
+To completely wipe the deployment:
+
+```bash
+./reset.sh
+```
+
+This deletes the entire namespace and everything inside.
+
+---
+
+## 📂 File Structure
+
+```
+k8s-deployment/
+├── deployments/           # Job and Deployment YAMLs
+├── config/                # ConfigMaps for client/server
+├── pvc/                   # PVC definitions
+├── service/               # Service for kut-server
+├── tools/                 # PVC viewer
+├── utils.sh               # Common env loader
+├── kustomization.yaml     # Kustomize config
+├── .env                   # DockerHub auth + namespace
+└── *.sh                   # deploy.sh, auth.sh, etc.
+```
+
+---
+
+## 📦 Tech Stack
+
+- Kubernetes (k3s)
+- DockerHub registry access
+- Bash scripting
+- Kustomize (built into `kubectl`)
+- TCP/UDP networking
+- Persistent storage with local-path-provisioner
+
+---
+
+## 🧊 Notes
+
+- All manifests are safe to commit — `.env` is ignored and contains sensitive values
+- Image overrides happen via `kustomization.yaml`
+- Works well on Raspberry Pi clusters or any K3s-compatible environment
+
+---
 
 ## License
 
@@ -115,5 +281,3 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 ## Contact
 
 For questions or support, please contact [oguz.altas@tum.de](mailto:oguz.altas@tum.de).
-
----

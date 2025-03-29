@@ -45,7 +45,7 @@ void MetricDataManager::printTable() const {
 }
 
 void MetricDataManager::saveAsCSV(const std::string& filepath) const {
-    // 👇 create the directory if it doesn't exist
+    // create the directory if it doesn't exist
     try {
         fs::path dir = fs::path(filepath).parent_path();
         if (!dir.empty() && !fs::exists(dir)) {
@@ -80,4 +80,5 @@ void MetricDataManager::saveAsCSV(const std::string& filepath) const {
     }
 
     out.close();
+    std::cout << "[INFO] Data successfully saved to " << filepath << "\n";
 }

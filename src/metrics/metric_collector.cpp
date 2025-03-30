@@ -23,24 +23,29 @@
 MetricCollector::MetricCollector(asio::io_context& io_context,
                                  double interval_sec,
                                  const std::vector<std::string>& enabledMetrics,
-                                 std::string  outputCsvPath)
+                                 std::string outputCsvPath)
     : timer_(io_context),
       interval_sec_(interval_sec),
       bytesTransferred_(0),
       elapsed_sec_(0.0),
       enabledMetrics_(enabledMetrics),
       outputCsvPath_(std::move(outputCsvPath)),
-      dataManager_(enabledMetrics) {}
-
+      dataManager_(enabledMetrics),
+      coreCount_(sysconf(_SC_NPROCESSORS_ONLN)) {}
 
 void MetricCollector::start() {
     measure();
 }
 
 void MetricCollector::stop() {
-    timer_.cancel();
     dataManager_.printTable();
-    dataManager_.saveAsCSV(outputCsvPath_);
+
+    std::time_t now = std::time(nullptr);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&now), "%Y-%m-%d-%H-%M-%S");
+
+    dataManager_.saveAsCSV(outputCsvPath_ + ss.str() + ".csv");
+    reset();
 }
 
 void MetricCollector::addBytesTransferred(int bytes) {
@@ -51,7 +56,7 @@ std::shared_ptr<MetricDataManager> MetricCollector::getManager() const {
     return std::make_shared<MetricDataManager>(dataManager_);
 }
 
-bool MetricCollector::isMetricEnabled(const std::string &name) const {
+bool MetricCollector::isMetricEnabled(const std::string& name) const {
     return std::ranges::find(enabledMetrics_, name) != enabledMetrics_.end();
 }
 
@@ -59,8 +64,8 @@ double MetricCollector::getTotalCPUUsage() {
 #ifdef __APPLE__
     host_cpu_load_info_data_t cpuinfo;
     mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
-    kern_return_t kr = host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, reinterpret_cast<host_info_t>(&cpuinfo),
-                                       &count);
+    kern_return_t kr = host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO,
+                                       reinterpret_cast<host_info_t>(&cpuinfo), &count);
     if (kr != KERN_SUCCESS) return 0.0;
 
     static uint64_t prevTotalTicks = 0;
@@ -108,36 +113,99 @@ double MetricCollector::getTotalCPUUsage() {
 #endif
 }
 
-// function that normalizes process CPU usage
+static long lastProcessJiffies = 0;
+static uint64_t lastCgroupUsageMicros = 0;
+static auto lastWallTime = std::chrono::steady_clock::now();
+
 double MetricCollector::getNormalizedProcessCPUUsage() const {
-    double toolCPU = getProcessCPUUsage();
-    int numCores = sysconf(_SC_NPROCESSORS_ONLN);
-    if(numCores > 0)
-        return toolCPU / numCores;
-    return toolCPU;
+#ifdef __APPLE__
+    task_thread_times_info_data_t info;
+    mach_msg_type_number_t count = TASK_THREAD_TIMES_INFO_COUNT;
+
+    if (task_info(mach_task_self(), TASK_THREAD_TIMES_INFO, reinterpret_cast<task_info_t>(&info), &count) != KERN_SUCCESS)
+        return 0.0;
+
+    static double lastTotalSec = 0.0;
+    auto now = std::chrono::steady_clock::now();
+    double wallElapsedSec = std::chrono::duration<double>(now - lastWallTime).count();
+    lastWallTime = now;
+
+    double currentTotalSec = info.user_time.seconds + info.system_time.seconds +
+                             info.user_time.microseconds / 1e6 + info.system_time.microseconds / 1e6;
+
+    double delta = currentTotalSec - lastTotalSec;
+    lastTotalSec = currentTotalSec;
+
+    if (delta <= 0.0 || wallElapsedSec <= 0.0 || coreCount_ <= 0) return 0.0;
+
+    return (delta / wallElapsedSec) * 100.0 / coreCount_;
+#else
+    std::ifstream statFile("/proc/self/stat");
+    if (!statFile.is_open()) return 0.0;
+
+    std::string line;
+    std::getline(statFile, line);
+    statFile.close();
+
+    std::istringstream ss(line);
+    std::string token;
+    long utime = 0, stime = 0;
+    for (int i = 1; i <= 15; ++i) {
+        ss >> token;
+        if (i == 14) utime = std::stol(token);
+        if (i == 15) stime = std::stol(token);
+    }
+    long currentProcessJiffies = utime + stime;
+
+    std::vector<std::string> cgroupPaths = {
+        "/sys/fs/cgroup/cpu.stat",
+        "/sys/fs/cgroup/unified/cpu.stat"
+    };
+
+    uint64_t usage_usec = 0;
+    for (const auto& path : cgroupPaths) {
+        std::ifstream cgroupFile(path);
+        if (!cgroupFile.is_open()) continue;
+
+        std::string line;
+        while (std::getline(cgroupFile, line)) {
+            std::istringstream iss(line);
+            std::string key;
+            uint64_t value;
+            if (iss >> key >> value && key == "usage_usec") {
+                usage_usec = value;
+                break;
+            }
+        }
+        if (usage_usec > 0) break;
+    }
+
+    auto currentTime = std::chrono::steady_clock::now();
+    double wallElapsedSec = std::chrono::duration<double>(currentTime - lastWallTime).count();
+    lastWallTime = currentTime;
+
+    long deltaProcess = currentProcessJiffies - lastProcessJiffies;
+    lastProcessJiffies = currentProcessJiffies;
+
+    uint64_t deltaCgroup = usage_usec - lastCgroupUsageMicros;
+    lastCgroupUsageMicros = usage_usec;
+
+    if (deltaProcess == 0 || deltaCgroup == 0) return 0.0;
+
+    if (coreCount_ <= 0 || wallElapsedSec <= 0.0) {
+        std::cerr << "[WARN] Invalid core count or wall time. Skipping CPU usage calculation." << std::endl;
+        return 0.0;
+    }
+
+    long ticksPerSec = sysconf(_SC_CLK_TCK);
+    double processTimeSec = static_cast<double>(deltaProcess) / ticksPerSec;
+
+    return (processTimeSec / wallElapsedSec) * 100.0 / coreCount_;
+#endif
 }
 
 double MetricCollector::getProcessCPUUsage() const {
-    struct rusage usage{};
-    getrusage(RUSAGE_SELF, &usage);
-    const double userTime = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6;
-    const double sysTime = usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
-    const double totalTime = userTime + sysTime;
-
-    static double lastTotalTime = 0;
-    static double lastElapsedTime = 0;
-
-    const double currentTime = totalTime;
-    const double currentWall = elapsed_sec_;
-
-    const double deltaTime = currentTime - lastTotalTime;
-    const double deltaWall = currentWall - lastElapsedTime;
-
-    lastTotalTime = currentTime;
-    lastElapsedTime = currentWall;
-
-    if (deltaWall == 0) return 0.0;
-    return (deltaTime / deltaWall) * 100.0;
+    return 0.0; // Deprecated
 }
 
 void MetricCollector::measure() {
@@ -152,11 +220,11 @@ void MetricCollector::measure() {
             }
 
             if (isMetricEnabled("tool_cpu_util")) {
-                double procCPU = getProcessCPUUsage();
-                int numCores = sysconf(_SC_NPROCESSORS_ONLN);
-                double normalizedProcCPU = (numCores > 0) ? procCPU / numCores : procCPU;
-                dataManager_.addMetricValue("tool_cpu_util", elapsed_sec_, procCPU);
-                dataManager_.addMetricValue("tool_cpu_util_norm", elapsed_sec_, normalizedProcCPU);
+                double normalized = getNormalizedProcessCPUUsage();
+                // tool_cpu_util: Mutlak CPU kullanımı (örn. %200 tüm core'lar üzerinden)
+                // tool_cpu_util_norm: Normalize edilmiş tek çekirdek bazlı CPU kullanımı (örn. %10)
+                dataManager_.addMetricValue("tool_cpu_util", elapsed_sec_, normalized * coreCount_);
+                dataManager_.addMetricValue("tool_cpu_util_norm", elapsed_sec_, normalized);
             }
 
             if (isMetricEnabled("throughput")) {
@@ -165,12 +233,13 @@ void MetricCollector::measure() {
             }
 
             bytesTransferred_ = 0;
-            measure(); // recursive
+            measure();
         }
     });
 }
 
 void MetricCollector::reset() {
+    timer_.cancel();
     bytesTransferred_ = 0;
     elapsed_sec_ = 0.0;
     dataManager_.clear();

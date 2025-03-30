@@ -9,24 +9,24 @@
 
 class MetricCollector {
 public:
-
-    MetricCollector(asio::io_context &io_context, double interval_sec, const std::vector<std::string> &enabledMetrics,
+    MetricCollector(asio::io_context &io_context,
+                    double interval_sec,
+                    const std::vector<std::string> &enabledMetrics,
                     std::string outputCsvPath);
 
     void start();
     void stop();
     void addBytesTransferred(int bytes);
-    [[nodiscard]] std::shared_ptr<MetricDataManager> getManager() const;
     void reset();
+
+    [[nodiscard]] std::shared_ptr<MetricDataManager> getManager() const;
 
 private:
     void measure();
-    [[nodiscard]] bool isMetricEnabled(const std::string& name) const;
+    [[nodiscard]] bool isMetricEnabled(const std::string &name) const;
 
     double getTotalCPUUsage();
-
     double getNormalizedProcessCPUUsage() const;
-
     [[nodiscard]] double getProcessCPUUsage() const;
 
     asio::steady_timer timer_;
@@ -35,6 +35,7 @@ private:
     double elapsed_sec_;
     std::vector<std::string> enabledMetrics_;
     std::string outputCsvPath_;
-
     MetricDataManager dataManager_;
+
+    long coreCount_;  // NEW: core count stored at construction time
 };

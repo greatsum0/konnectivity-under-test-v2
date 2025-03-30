@@ -15,3 +15,7 @@ void UdpClient::sendMessage(const std::string &message) {
         std::cerr << "UDP send error: " << ec.message() << std::endl;
     }
 }
+
+void UdpClient::printSummary() const {
+    std::cout << "[SUMMARY] UDP client does not support summary printing\n";
+}

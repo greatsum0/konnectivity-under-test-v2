@@ -14,10 +14,13 @@ public:
 
     void sendMessage(const std::string &message) override;
 
+    void printSummary() const override;
+
 private:
     asio::io_context &io_context_;
     asio::ip::tcp::socket socket_;
     asio::ip::tcp::resolver resolver_;
     std::string host_;
     int port_;
+    int totalBytesSent_;
 };

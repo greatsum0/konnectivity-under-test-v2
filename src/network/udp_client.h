@@ -10,6 +10,8 @@ public:
 
     void sendMessage(const std::string &message) override;
 
+    void printSummary() const override;
+
 private:
     asio::io_context &io_context_;
     asio::ip::udp::socket socket_;

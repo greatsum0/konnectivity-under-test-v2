@@ -5,7 +5,8 @@
 TcpServer::TcpServer(ServerContext& context)
     : context_(context),
       acceptor_(context.ioContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), context.getPortForProtocol("tcp"))),
-      socket_(context.ioContext) {}
+      socket_(context.ioContext),
+      totalBytesReceived_(0) {}  // initialize the total byte counter to zero
 
 void TcpServer::run() {
     acceptConnection();
@@ -18,10 +19,11 @@ void TcpServer::acceptConnection() {
         if (!error) {
             std::cout << "Connection accepted from: " << socket_.remote_endpoint() << std::endl;
 
+            totalBytesReceived_ = 0; // reset the total byte counter for the new session
+
             if (context_.metricCollector) {
                 std::cout << "Starting TCP metric collection..." << std::endl;
                 context_.metricCollector->start();
-                // scheduleMetricCollectionSummary(context_.ioContext, context_.metricCollector, 15.0, "TCP Server");
             }
 
             readData();
@@ -35,24 +37,21 @@ void TcpServer::readData() {
     socket_.async_read_some(asio::buffer(buffer_),
         [this](const asio::error_code& ec, std::size_t length) {
             if (!ec) {
+                totalBytesReceived_ += length;  // add the length of the received data to the total byte counter
                 context_.metricCollector->addBytesTransferred(static_cast<int>(length));
                 readData();
             } else {
                 std::cerr << "Read error: " << ec.message() << std::endl;
-                socket_.close();
 
                 if (context_.metricCollector) {
                     context_.metricCollector->stop();
-
-                    if (auto manager = context_.metricCollector->getManager()) {
-                        manager->printTable();
-                        // append timestamp to the output file
-                        const auto timestamp = std::to_string(std::time(nullptr));
-                        manager->saveAsCSV(context_.config.output_path + "_" + timestamp);
-                    }
                 }
-                // clear the metric collector
-                context_.metricCollector->reset();
+
+                std::cout << "[SUMMARY] Total bytes received in session: "
+                          << totalBytesReceived_ << " bytes (≈ "
+                          << totalBytesReceived_ / 1'000'000.0 << " MB)\n";
+
+                socket_.close();
                 this->acceptConnection();
             }
         });

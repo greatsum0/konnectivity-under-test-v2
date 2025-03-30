@@ -81,7 +81,7 @@ void runClient(const std::string &configPath) {
 
         trafficPattern->start();
         ioContext.run();
-
+        client->printSummary();
         std::cout << "Finished scenario: " << scenario.name << "\n" << std::endl;
     }
 }

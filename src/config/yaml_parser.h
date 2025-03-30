@@ -50,5 +50,5 @@ class YamlParser {
 public:
     static ServerConfig parseServerConfig(const std::string &filepath);
 
-    static std::vector<Scenario> parseScenarios(const std::string &filepath);
+    static Scenario parseScenario(const std::string &filepath);
 };

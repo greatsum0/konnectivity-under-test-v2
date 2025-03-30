@@ -39,51 +39,44 @@ void runServer(const std::string &configPath) {
 }
 
 void runClient(const std::string &configPath) {
-    auto scenarios = YamlParser::parseScenarios(configPath);
-    if (scenarios.empty()) {
-        std::cerr << "No valid scenarios found in config file!" << std::endl;
+    Scenario scenario = YamlParser::parseScenario(configPath);
+    asio::io_context ioContext;
+    ClientContext ctx = ClientContext::fromScenario(ioContext, scenario);
+
+    std::cout << "Running scenario: " << scenario.name << std::endl;
+
+    std::shared_ptr<INetworkClient> client;
+    try {
+        if (ctx.protocol() == "tcp") {
+            auto tcpClient = std::make_shared<TcpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
+            tcpClient->connect();
+            client = tcpClient;
+        } else if (ctx.protocol() == "udp") {
+            client = std::make_shared<UdpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
+        } else {
+            std::cerr << "[ERROR] Unsupported protocol: " << ctx.protocol() << std::endl;
+            return;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[ERROR] Connection failed: " << e.what() << std::endl;
         return;
     }
 
-    for (const auto& scenario : scenarios) {
-        asio::io_context ioContext;
-        ClientContext ctx = ClientContext::fromScenario(ioContext, scenario);
+    auto sendFunc = [client](const std::string &data) {
+        client->sendMessage(data);
+    };
 
-        std::cout << "Running scenario: " << scenario.name << std::endl;
-
-        std::shared_ptr<INetworkClient> client;
-        try {
-            if (ctx.protocol() == "tcp") {
-                auto tcpClient = std::make_shared<TcpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
-                tcpClient->connect();  // catch the connection error here
-                client = tcpClient;
-            } else if (ctx.protocol() == "udp") {
-                client = std::make_shared<UdpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
-            } else {
-                std::cerr << "[ERROR] Unsupported protocol: " << ctx.protocol() << std::endl;
-                continue;
-            }
-        } catch (const std::exception& e) {
-            std::cerr << "[ERROR] Scenario \"" << scenario.name << "\" skipped due to connection failure." << std::endl;
-            continue;  // skip this scenario and continue with the next one
-        }
-
-        auto sendFunc = [client](const std::string &data) {
-            client->sendMessage(data);
-        };
-
-        auto trafficPattern = TrafficPatternFactory::createTrafficPattern(ctx, sendFunc);
-        if (!trafficPattern) {
-            std::cerr << "[ERROR] Failed to create traffic pattern for type: "
-                      << ctx.scenario.traffic_type << std::endl;
-            continue;
-        }
-
-        trafficPattern->start();
-        ioContext.run();
-        client->printSummary();
-        std::cout << "Finished scenario: " << scenario.name << "\n" << std::endl;
+    auto trafficPattern = TrafficPatternFactory::createTrafficPattern(ctx, sendFunc);
+    if (!trafficPattern) {
+        std::cerr << "[ERROR] Failed to create traffic pattern for type: "
+                  << ctx.scenario.traffic_type << std::endl;
+        return;
     }
+
+    trafficPattern->start();
+    ioContext.run();
+    client->printSummary();
+    std::cout << "Finished scenario: " << scenario.name << "\n" << std::endl;
 }
 
 

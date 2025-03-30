@@ -29,88 +29,70 @@ ServerConfig YamlParser::parseServerConfig(const std::string &filepath) {
     return scfg;
 }
 
-// SCENARIOS
-std::vector<Scenario> YamlParser::parseScenarios(const std::string &filepath) {
+// SCENARIO
+Scenario YamlParser::parseScenario(const std::string &filepath) {
     YAML::Node root = YAML::LoadFile(filepath);
-    std::vector<Scenario> scenarios;
+    YAML::Node scenarioNode = root["scenario"];
+    Scenario sc;
 
-    for (const auto &scenarioNode: root["scenarios"]) {
-        Scenario sc;
-        sc.name = scenarioNode["name"].as<std::string>();
-        sc.output_path = scenarioNode["output_path"].as<std::string>();
-        sc.protocol = scenarioNode["network"]["protocol"].as<std::string>();
-        sc.server_address = scenarioNode["network"]["server_address"].as<std::string>();
-        sc.server_port = scenarioNode["network"]["server_port"].as<int>();
-        sc.traffic_type = scenarioNode["traffic_pattern"]["type"].as<std::string>();
-        sc.duration_sec = scenarioNode["traffic_pattern"]["duration_sec"].as<int>();
-        sc.interval_sec = scenarioNode["traffic_pattern"]["interval_sec"]
-                              ? scenarioNode["traffic_pattern"]["interval_sec"].as<double>()
-                              : 1.0;
+    sc.name = scenarioNode["name"].as<std::string>();
+    sc.output_path = scenarioNode["output_path"].as<std::string>();
+    sc.protocol = scenarioNode["network"]["protocol"].as<std::string>();
+    sc.server_address = scenarioNode["network"]["server_address"].as<std::string>();
+    sc.server_port = scenarioNode["network"]["server_port"].as<int>();
+    sc.traffic_type = scenarioNode["traffic_pattern"]["type"].as<std::string>();
+    sc.duration_sec = scenarioNode["traffic_pattern"]["duration_sec"].as<int>();
+    sc.interval_sec = scenarioNode["traffic_pattern"]["interval_sec"]
+                          ? scenarioNode["traffic_pattern"]["interval_sec"].as<double>()
+                          : 1.0;
 
-        if (sc.traffic_type == "burst") {
-            sc.rate_mbps = scenarioNode["traffic_pattern"]["parameters"]["rate_mbps"].as<int>();
-            sc.burst_size_mb = scenarioNode["traffic_pattern"]["parameters"]["burst_size_mb"].as<int>();
-            sc.burst_duration_sec = scenarioNode["traffic_pattern"]["parameters"]["burst_duration_sec"].as<double>();
-            sc.burst_interval_sec = scenarioNode["traffic_pattern"]["parameters"]["burst_interval_sec"].as<double>();
-        } else if (sc.traffic_type == "pure_burst") {
-            sc.burst_size_mb = scenarioNode["traffic_pattern"]["parameters"]["burst_size_mb"].as<int>();
-            sc.burst_duration_sec = scenarioNode["traffic_pattern"]["parameters"]["burst_duration_sec"].as<double>();
-            sc.burst_interval_sec = scenarioNode["traffic_pattern"]["parameters"]["burst_interval_sec"].as<double>();
-        } else if (sc.traffic_type == "random_burst") {
-            sc.rate_mbps = scenarioNode["traffic_pattern"]["parameters"]["rate_mbps"].as<int>();
-            sc.burst_size_mb = scenarioNode["traffic_pattern"]["parameters"]["burst_size_mb"].as<int>();
-            sc.burst_duration_sec = scenarioNode["traffic_pattern"]["parameters"]["burst_duration_sec"].as<double>();
-            sc.burst_interval_sec = scenarioNode["traffic_pattern"]["parameters"]["burst_interval_sec"].as<double>();
-            sc.random_seed = scenarioNode["traffic_pattern"]["parameters"]["random_seed"].as<int>();
-            sc.min_burst_size_mb = scenarioNode["traffic_pattern"]["parameters"]["min_burst_size_mb"]
-                                       ? scenarioNode["traffic_pattern"]["parameters"]["min_burst_size_mb"].as<int>()
-                                       : 0;
-            sc.max_burst_size_mb = scenarioNode["traffic_pattern"]["parameters"]["max_burst_size_mb"]
-                                       ? scenarioNode["traffic_pattern"]["parameters"]["max_burst_size_mb"].as<int>()
-                                       : 0;
-            sc.min_burst_duration_ms = scenarioNode["traffic_pattern"]["parameters"]["min_burst_duration_ms"]
-                                           ? scenarioNode["traffic_pattern"]["parameters"]["min_burst_duration_ms"].as<
-                                               int>()
-                                           : 0;
-            sc.max_burst_duration_ms = scenarioNode["traffic_pattern"]["parameters"]["max_burst_duration_ms"]
-                                           ? scenarioNode["traffic_pattern"]["parameters"]["max_burst_duration_ms"].as<
-                                               int>()
-                                           : 0;
-            sc.min_burst_interval_ms = scenarioNode["traffic_pattern"]["parameters"]["min_burst_interval_ms"]
-                                           ? scenarioNode["traffic_pattern"]["parameters"]["min_burst_interval_ms"].as<
-                                               int>()
-                                           : 0;
-            sc.max_burst_interval_ms = scenarioNode["traffic_pattern"]["parameters"]["max_burst_interval_ms"]
-                                           ? scenarioNode["traffic_pattern"]["parameters"]["max_burst_interval_ms"].as<
-                                               int>()
-                                           : 0;
-        } else if (sc.traffic_type == "constant") {
-            sc.rate_mbps = scenarioNode["traffic_pattern"]["parameters"]["rate_mbps"].as<int>();
-        } else if (sc.traffic_type == "ramp_up") {
-            sc.rate_mbps = scenarioNode["traffic_pattern"]["parameters"]["rate_mbps"].as<int>();
-            sc.ramp_up_time = scenarioNode["traffic_pattern"]["parameters"]["ramp_up_time"].as<int>();
-        } else if (sc.traffic_type == "ramp_down") {
-            sc.rate_mbps = scenarioNode["traffic_pattern"]["parameters"]["rate_mbps"].as<int>();
-            sc.ramp_down_time = scenarioNode["traffic_pattern"]["parameters"]["ramp_down_time"].as<int>();
-        } else if (sc.traffic_type == "sinusoidal") {
-            sc.rate_mbps = scenarioNode["traffic_pattern"]["parameters"]["rate_mbps"].as<int>();
-            sc.amplitude = scenarioNode["traffic_pattern"]["parameters"]["amplitude"].as<double>();
-            sc.frequency = scenarioNode["traffic_pattern"]["parameters"]["frequency"].as<double>();
-        } else if (sc.traffic_type == "random") {
-            sc.random_seed = scenarioNode["traffic_pattern"]["parameters"]["random_seed"].as<int>();
-            sc.max_rate_mbps = scenarioNode["traffic_pattern"]["parameters"]["max_rate_mbps"].as<int>();
-        }
+    const auto& params = scenarioNode["traffic_pattern"]["parameters"];
 
-        if (const auto &mc = scenarioNode["metric_collection"]) {
-            if (mc["metrics"]) {
-                for (const auto &metric: mc["metrics"]) {
-                    sc.enabled_metrics.push_back(metric.as<std::string>());
-                }
-            }
-        }
-
-        scenarios.push_back(sc);
+    if (sc.traffic_type == "burst") {
+        sc.rate_mbps = params["rate_mbps"].as<int>();
+        sc.burst_size_mb = params["burst_size_mb"].as<int>();
+        sc.burst_duration_sec = params["burst_duration_sec"].as<double>();
+        sc.burst_interval_sec = params["burst_interval_sec"].as<double>();
+    } else if (sc.traffic_type == "pure_burst") {
+        sc.burst_size_mb = params["burst_size_mb"].as<int>();
+        sc.burst_duration_sec = params["burst_duration_sec"].as<double>();
+        sc.burst_interval_sec = params["burst_interval_sec"].as<double>();
+    } else if (sc.traffic_type == "random_burst") {
+        sc.rate_mbps = params["rate_mbps"].as<int>();
+        sc.burst_size_mb = params["burst_size_mb"].as<int>();
+        sc.burst_duration_sec = params["burst_duration_sec"].as<double>();
+        sc.burst_interval_sec = params["burst_interval_sec"].as<double>();
+        sc.random_seed = params["random_seed"].as<int>();
+        sc.min_burst_size_mb = params["min_burst_size_mb"] ? params["min_burst_size_mb"].as<int>() : 0;
+        sc.max_burst_size_mb = params["max_burst_size_mb"] ? params["max_burst_size_mb"].as<int>() : 0;
+        sc.min_burst_duration_ms = params["min_burst_duration_ms"] ? params["min_burst_duration_ms"].as<int>() : 0;
+        sc.max_burst_duration_ms = params["max_burst_duration_ms"] ? params["max_burst_duration_ms"].as<int>() : 0;
+        sc.min_burst_interval_ms = params["min_burst_interval_ms"] ? params["min_burst_interval_ms"].as<int>() : 0;
+        sc.max_burst_interval_ms = params["max_burst_interval_ms"] ? params["max_burst_interval_ms"].as<int>() : 0;
+    } else if (sc.traffic_type == "constant") {
+        sc.rate_mbps = params["rate_mbps"].as<int>();
+    } else if (sc.traffic_type == "ramp_up") {
+        sc.rate_mbps = params["rate_mbps"].as<int>();
+        sc.ramp_up_time = params["ramp_up_time"].as<int>();
+    } else if (sc.traffic_type == "ramp_down") {
+        sc.rate_mbps = params["rate_mbps"].as<int>();
+        sc.ramp_down_time = params["ramp_down_time"].as<int>();
+    } else if (sc.traffic_type == "sinusoidal") {
+        sc.rate_mbps = params["rate_mbps"].as<int>();
+        sc.amplitude = params["amplitude"].as<double>();
+        sc.frequency = params["frequency"].as<double>();
+    } else if (sc.traffic_type == "random") {
+        sc.random_seed = params["random_seed"].as<int>();
+        sc.max_rate_mbps = params["max_rate_mbps"].as<int>();
     }
 
-    return scenarios;
+    if (const auto &mc = scenarioNode["metric_collection"]) {
+        if (mc["metrics"]) {
+            for (const auto &metric: mc["metrics"]) {
+                sc.enabled_metrics.push_back(metric.as<std::string>());
+            }
+        }
+    }
+
+    return sc;
 }

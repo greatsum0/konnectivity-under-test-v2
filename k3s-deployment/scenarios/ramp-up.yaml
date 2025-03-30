@@ -1,0 +1,21 @@
+scenario:
+  name: "test_scenario_ramp_up"
+  output_path: "/measurements/data/test_scenario_ramp_up.csv"
+  network:
+    protocol: "tcp"
+    server_address: "kut-server"
+    server_port: 23456
+  traffic_pattern:
+    type: "ramp_up"  # Bu alan, kullanılan trafik türünü belirler (constant, burst, random, vb.)
+    duration_sec: 11   # Trafik süresi
+    interval_sec: 1.0  # Trafik gönderme aralığı (saniye)
+    parameters:
+      rate_mbps: 1000    # Sabit trafik için hız (Mbps)
+      ramp_up_time: 11  # Ramp-up trafik için artış süresi (saniye)
+  metric_collection:
+    interval_sec: 1.0  # Metrik toplama aralığı (saniye)
+    metrics:
+      - total_cpu_util
+      - tool_cpu_util
+      - tool_cpu_util_norm
+      - throughput

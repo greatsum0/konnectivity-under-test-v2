@@ -4,17 +4,18 @@ kind: Kustomization
 namespace: kut-app
 
 resources:
+  - jobs/
+  - configmaps/
   - namespace.yaml
-  - config/client-config.yaml
-  - config/server-config.yaml
   - pvc/pvc-client.yaml
   - pvc/pvc-server.yaml
-  - deployments/client.yaml
+  - config/server-config.yaml
   - deployments/server.yaml
   - services/server-service.yaml
   - tools/storage.yaml
 
+
 images:
   - name: placeholder/temp-image
-    newName: your-user/kut-tester
+    newName: oguznagak/kut-tester
     newTag: latest

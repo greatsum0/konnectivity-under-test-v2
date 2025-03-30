@@ -14,4 +14,7 @@ data:
       metric_collection:
         interval_sec: 1
         metrics:
+          - total_cpu_util
+          - tool_cpu_util
+          - total_cpu_util_norm
           - throughput

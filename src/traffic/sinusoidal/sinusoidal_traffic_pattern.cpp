@@ -17,13 +17,14 @@ SinusoidalTrafficPattern::SinusoidalTrafficPattern(ClientContext &context, SendF
 
 void SinusoidalTrafficPattern::start() {
     context_.metricCollector->start();
+    std::cout << "[INFO] Starting sinusoidal traffic generation..." << std::endl;
     sendData();
 }
 
 void SinusoidalTrafficPattern::sendData() {
     if (elapsed_ms_ >= context_.durationSec() * 1000) {
         context_.metricCollector->stop();
-        std::cout << "Sinusoidal traffic generation finished." << std::endl;
+        std::cout << "[INFO] Sinusoidal traffic generation finished." << std::endl;
         return;
     }
 

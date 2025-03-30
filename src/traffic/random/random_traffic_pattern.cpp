@@ -16,13 +16,14 @@ RandomTrafficPattern::RandomTrafficPattern(ClientContext &context, SendFunction 
 
 void RandomTrafficPattern::start() {
     context_.metricCollector->start();
+    std::cout << "[INFO] Starting random traffic generation..." << std::endl;
     scheduleNextSend();
 }
 
 void RandomTrafficPattern::scheduleNextSend() {
     if (elapsed_ms_ >= context_.durationSec() * 1000) {
         context_.metricCollector->stop();
-        std::cout << "Random traffic generation finished." << std::endl;
+        std::cout << "[INFO] Random traffic generation finished." << std::endl;
         return;
     }
 

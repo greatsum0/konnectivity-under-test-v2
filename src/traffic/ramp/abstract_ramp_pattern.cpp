@@ -14,13 +14,14 @@ AbstractRampPattern::AbstractRampPattern(ClientContext& context, SendFunction se
 
 void AbstractRampPattern::start() {
     context_.metricCollector->start();
+    std::cout << "[INFO] Starting ramp traffic generation..." << std::endl;
     scheduleNextSend();
 }
 
 void AbstractRampPattern::scheduleNextSend() {
     if (elapsed_ms_ >= context_.durationSec() * 1000) {
         context_.metricCollector->stop();
-        std::cout << "Ramp traffic generation finished." << std::endl;
+        std::cout << "[INFO] Ramp traffic generation finished." << std::endl;
         return;
     }
 

@@ -13,13 +13,14 @@ AbstractBurstPattern::AbstractBurstPattern(ClientContext& context, SendFunction 
 
 void AbstractBurstPattern::start() {
     context_.metricCollector->start();
+    std::cout << "[INFO] Burst traffic generation started." << std::endl;
     scheduleNextSend();
 }
 
 void AbstractBurstPattern::scheduleNextSend() {
     if (elapsed_ms_ >= context_.durationSec() * 1000) {
         context_.metricCollector->stop();
-        std::cout << "Burst traffic generation finished." << std::endl;
+        std::cout << "[INFO] Burst traffic generation finished." << std::endl;
         return;
     }
 

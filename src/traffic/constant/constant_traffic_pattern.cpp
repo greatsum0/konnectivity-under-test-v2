@@ -16,13 +16,14 @@ ConstantTrafficPattern::ConstantTrafficPattern(ClientContext& context, SendFunct
 
 void ConstantTrafficPattern::start() {
     context_.metricCollector->start();
+    std::cout << "[INFO] Constant traffic generation started." << std::endl;
     sendData();
 }
 
 void ConstantTrafficPattern::sendData() {
     if (elapsed_ms_ >= context_.durationSec() * 1000) {
         context_.metricCollector->stop();
-        std::cout << "Constant traffic generation finished." << std::endl;
+        std::cout << "[INFO] Constant traffic generation finished." << std::endl;
         return;
     }
 

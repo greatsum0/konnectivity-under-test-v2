@@ -27,4 +27,6 @@ private:
     int max_rate_mbps_;
     std::mt19937 rng_;
     std::uniform_int_distribution<int> rate_dist_;
+    std::chrono::steady_clock::time_point startTime_;
+    std::chrono::steady_clock::time_point nextPlannedTime_;
 };

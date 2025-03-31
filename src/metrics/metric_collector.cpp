@@ -37,6 +37,12 @@ void MetricCollector::start() {
     measure();
 }
 
+void MetricCollector::start(std::chrono::steady_clock::time_point referenceTime) {
+    lastWallTime_ = referenceTime;  // ölçüm döngüsü bu zamanla senkronize başlasın
+    elapsed_sec_ = 0.0;
+    measure();
+}
+
 void MetricCollector::stop() {
     dataManager_.printTable();
 
@@ -115,9 +121,9 @@ double MetricCollector::getTotalCPUUsage() {
 
 static long lastProcessJiffies = 0;
 static uint64_t lastCgroupUsageMicros = 0;
-static auto lastWallTime = std::chrono::steady_clock::now();
+//static auto lastWallTime = std::chrono::steady_clock::now();
 
-double MetricCollector::getNormalizedProcessCPUUsage() const {
+double MetricCollector::getNormalizedProcessCPUUsage() {
 #ifdef __APPLE__
     task_thread_times_info_data_t info;
     mach_msg_type_number_t count = TASK_THREAD_TIMES_INFO_COUNT;
@@ -127,8 +133,8 @@ double MetricCollector::getNormalizedProcessCPUUsage() const {
 
     static double lastTotalSec = 0.0;
     auto now = std::chrono::steady_clock::now();
-    double wallElapsedSec = std::chrono::duration<double>(now - lastWallTime).count();
-    lastWallTime = now;
+    double wallElapsedSec = std::chrono::duration<double>(now - lastWallTime_).count();
+    lastWallTime_ = now;
 
     double currentTotalSec = info.user_time.seconds + info.system_time.seconds +
                              info.user_time.microseconds / 1e6 + info.system_time.microseconds / 1e6;
@@ -209,10 +215,14 @@ double MetricCollector::getProcessCPUUsage() const {
 }
 
 void MetricCollector::measure() {
+    auto startTime = std::chrono::steady_clock::now();
+
     timer_.expires_after(std::chrono::milliseconds(static_cast<int>(interval_sec_ * 1000)));
-    timer_.async_wait([this](const asio::error_code& ec) {
+    timer_.async_wait([this, startTime](const asio::error_code& ec) {
         if (!ec) {
-            elapsed_sec_ += interval_sec_;
+            auto endTime = std::chrono::steady_clock::now();
+            double actualIntervalSec = std::chrono::duration<double>(endTime - startTime).count();
+            elapsed_sec_ += actualIntervalSec;
 
             if (isMetricEnabled("total_cpu_util")) {
                 double totalCPU = getTotalCPUUsage();
@@ -221,26 +231,26 @@ void MetricCollector::measure() {
 
             if (isMetricEnabled("tool_cpu_util")) {
                 double normalized = getNormalizedProcessCPUUsage();
-                // tool_cpu_util: Mutlak CPU kullanımı (örn. %200 tüm core'lar üzerinden)
-                // tool_cpu_util_norm: Normalize edilmiş tek çekirdek bazlı CPU kullanımı (örn. %10)
                 dataManager_.addMetricValue("tool_cpu_util", elapsed_sec_, normalized * coreCount_);
                 dataManager_.addMetricValue("tool_cpu_util_norm", elapsed_sec_, normalized);
             }
 
             if (isMetricEnabled("throughput")) {
-                double throughput_mbps = (bytesTransferred_ * 8.0) / (interval_sec_ * 1'000'000);
+                double throughput_mbps = (bytesTransferred_ * 8.0) / (actualIntervalSec * 1'000'000);
                 dataManager_.addMetricValue("throughput", elapsed_sec_, throughput_mbps);
             }
 
             bytesTransferred_ = 0;
-            measure();
+            measure();  // recursive çağrı ile devam
         }
     });
 }
+
 
 void MetricCollector::reset() {
     timer_.cancel();
     bytesTransferred_ = 0;
     elapsed_sec_ = 0.0;
     dataManager_.clear();
+    lastWallTime_ = std::chrono::steady_clock::now();
 }

@@ -26,4 +26,7 @@ protected:
     int elapsed_ms_;
     int burst_interval_ms_ = 0;
     int burst_duration_ms_ = 0;
+    std::chrono::steady_clock::time_point startTime_;
+    std::chrono::steady_clock::time_point nextPlannedTime_;
+
 };

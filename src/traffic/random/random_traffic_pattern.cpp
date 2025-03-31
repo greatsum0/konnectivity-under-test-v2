@@ -15,7 +15,10 @@ RandomTrafficPattern::RandomTrafficPattern(ClientContext &context, SendFunction 
 }
 
 void RandomTrafficPattern::start() {
-    context_.metricCollector->start();
+    startTime_ = std::chrono::steady_clock::now();
+    nextPlannedTime_ = startTime_;
+    context_.metricCollector->start(startTime_);
+
     std::cout << "[INFO] Starting random traffic generation..." << std::endl;
     scheduleNextSend();
 }
@@ -27,7 +30,7 @@ void RandomTrafficPattern::scheduleNextSend() {
         return;
     }
 
-    int random_rate = rate_dist_(rng_); // Mbps
+    int random_rate = rate_dist_(rng_);  // Mbps
     double bytes_per_sec = (random_rate * 1'000'000) / 8.0;
     int bytes_to_send = static_cast<int>((bytes_per_sec * interval_ms_) / 1000.0);
 
@@ -36,7 +39,14 @@ void RandomTrafficPattern::scheduleNextSend() {
     context_.metricCollector->addBytesTransferred(bytes_to_send);
 
     elapsed_ms_ += interval_ms_;
-    timer_.expires_after(std::chrono::milliseconds(interval_ms_));
+    nextPlannedTime_ += std::chrono::milliseconds(interval_ms_);
+
+    auto now = std::chrono::steady_clock::now();
+    auto delay = std::chrono::duration_cast<std::chrono::milliseconds>(
+        nextPlannedTime_ > now ? (nextPlannedTime_ - now) : std::chrono::milliseconds(0)
+    );
+
+    timer_.expires_after(delay);
     auto self = shared_from_this();
     timer_.async_wait([self](const asio::error_code &ec) {
         if (!ec) {

@@ -16,7 +16,10 @@ SinusoidalTrafficPattern::SinusoidalTrafficPattern(ClientContext &context, SendF
 }
 
 void SinusoidalTrafficPattern::start() {
-    context_.metricCollector->start();
+    startTime_ = std::chrono::steady_clock::now();
+    nextPlannedTime_ = startTime_;
+    context_.metricCollector->start(startTime_);
+
     std::cout << "[INFO] Starting sinusoidal traffic generation..." << std::endl;
     sendData();
 }
@@ -40,8 +43,15 @@ void SinusoidalTrafficPattern::sendData() {
     context_.metricCollector->addBytesTransferred(bytes_to_send);
 
     elapsed_ms_ += interval_ms_;
+    nextPlannedTime_ += std::chrono::milliseconds(interval_ms_);
+
+    auto now = std::chrono::steady_clock::now();
+    auto delay = std::chrono::duration_cast<std::chrono::milliseconds>(
+        nextPlannedTime_ > now ? (nextPlannedTime_ - now) : std::chrono::milliseconds(0)
+    );
+
+    timer_.expires_after(delay);
     auto self = shared_from_this();
-    timer_.expires_after(std::chrono::milliseconds(interval_ms_));
     timer_.async_wait([self](const asio::error_code &ec) {
         if (!ec) {
             self->sendData();

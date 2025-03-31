@@ -24,4 +24,6 @@ protected:
     asio::steady_timer timer_;
     int interval_ms_;
     int elapsed_ms_;
+    std::chrono::steady_clock::time_point startTime_;
+    std::chrono::steady_clock::time_point nextPlannedTime_;
 };

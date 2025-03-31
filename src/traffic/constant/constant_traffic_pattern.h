@@ -26,4 +26,7 @@ private:
     int interval_ms_;
     int elapsed_ms_;
     int bytes_per_interval_;
+    std::chrono::steady_clock::time_point startTime_;
+    std::chrono::steady_clock::time_point nextPlannedTime_;
+
 };

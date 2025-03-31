@@ -15,10 +15,14 @@ ConstantTrafficPattern::ConstantTrafficPattern(ClientContext& context, SendFunct
 }
 
 void ConstantTrafficPattern::start() {
-    context_.metricCollector->start();
+    startTime_ = std::chrono::steady_clock::now();
+    nextPlannedTime_ = startTime_;
+    context_.metricCollector->start(startTime_);  // drift-free ölçümle senkron
+
     std::cout << "[INFO] Constant traffic generation started." << std::endl;
     sendData();
 }
+
 
 void ConstantTrafficPattern::sendData() {
     if (elapsed_ms_ >= context_.durationSec() * 1000) {
@@ -30,9 +34,16 @@ void ConstantTrafficPattern::sendData() {
     std::string data(bytes_per_interval_, 'x');
     sendFunc_(data);
     context_.metricCollector->addBytesTransferred(bytes_per_interval_);
-    elapsed_ms_ += interval_ms_;
 
-    timer_.expires_after(std::chrono::milliseconds(interval_ms_));
+    elapsed_ms_ += interval_ms_;
+    nextPlannedTime_ += std::chrono::milliseconds(interval_ms_);
+
+    auto now = std::chrono::steady_clock::now();
+    auto delay = std::chrono::duration_cast<std::chrono::milliseconds>(
+        nextPlannedTime_ > now ? (nextPlannedTime_ - now) : std::chrono::milliseconds(0)
+    );
+
+    timer_.expires_after(delay);
     auto self = shared_from_this();
     timer_.async_wait([self](const asio::error_code& ec) {
         if (!ec) {
@@ -40,3 +51,4 @@ void ConstantTrafficPattern::sendData() {
         }
     });
 }
+

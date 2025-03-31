@@ -29,4 +29,6 @@ private:
 
     int interval_ms_;      // (ms) send interval
     int elapsed_ms_;       // (ms) total elapsed time
+    std::chrono::steady_clock::time_point startTime_;
+    std::chrono::steady_clock::time_point nextPlannedTime_;
 };

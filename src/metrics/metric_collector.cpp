@@ -187,8 +187,8 @@ double MetricCollector::getNormalizedProcessCPUUsage() {
     }
 
     auto currentTime = std::chrono::steady_clock::now();
-    double wallElapsedSec = std::chrono::duration<double>(currentTime - lastWallTime).count();
-    lastWallTime = currentTime;
+    double wallElapsedSec = std::chrono::duration<double>(currentTime - lastWallTime_).count();
+    lastWallTime_ = currentTime;
 
     long deltaProcess = currentProcessJiffies - lastProcessJiffies;
     lastProcessJiffies = currentProcessJiffies;

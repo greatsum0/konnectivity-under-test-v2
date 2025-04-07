@@ -15,19 +15,26 @@ public:
                     std::string outputCsvPath);
 
     void start();
+
     void start(std::chrono::steady_clock::time_point referenceTime);
+
     void stop();
+
     void addBytesTransferred(int bytes);
+
     void reset();
 
     [[nodiscard]] std::shared_ptr<MetricDataManager> getManager() const;
 
 private:
     void measure();
+
     [[nodiscard]] bool isMetricEnabled(const std::string &name) const;
 
-    double getTotalCPUUsage();
-    double getNormalizedProcessCPUUsage();
+    [[nodiscard]] double readTotalCPUUsage() const;
+
+    [[nodiscard]] double readSelfCPUUsage() const;
+
     [[nodiscard]] double getProcessCPUUsage() const;
 
     asio::steady_timer timer_;
@@ -39,5 +46,5 @@ private:
     MetricDataManager dataManager_;
     std::chrono::steady_clock::time_point lastWallTime_;
 
-    long coreCount_;  // NEW: core count stored at construction time
+    long coreCount_; // NEW: core count stored at construction time
 };

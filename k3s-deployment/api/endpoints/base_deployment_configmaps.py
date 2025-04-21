@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import yaml
 
-logger = CustomLogger("base_deployment", Path(__file__).parent.parent / "system.log")
+logger = CustomLogger("base_deployment_configmaps", Path(__file__).parent.parent / "system.log")
 
 def generate_configmaps():
     base_dir = Path(__file__).parent.parent.parent  # k3s-deployment/

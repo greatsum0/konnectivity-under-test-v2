@@ -3,7 +3,7 @@ from ..logger import CustomLogger
 from pathlib import Path
 import yaml
 
-logger = CustomLogger("base_deployment", Path(__file__).parent.parent / "system.log")
+logger = CustomLogger("base_deployment_jobs", Path(__file__).parent.parent / "system.log")
 
 def generate_jobs():
     base_dir = Path(__file__).parent.parent.parent  # k3s-deployment/

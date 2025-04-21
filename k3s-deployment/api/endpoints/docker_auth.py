@@ -3,7 +3,7 @@ from ..logger import CustomLogger
 from pathlib import Path
 import subprocess
 
-logger = CustomLogger("base_deployment", Path(__file__).parent.parent / "system.log")
+logger = CustomLogger("docker_auth", Path(__file__).parent.parent / "system.log")
 
 def perform_docker_auth():
     username = get_env("AUTH_USERNAME")

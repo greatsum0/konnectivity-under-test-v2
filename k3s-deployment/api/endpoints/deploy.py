@@ -3,7 +3,7 @@ from ..env_loader import get_env
 from pathlib import Path
 import subprocess
 
-logger = CustomLogger("base_deployment", Path(__file__).parent.parent / "system.log")
+logger = CustomLogger("deploy", Path(__file__).parent.parent / "system.log")
 
 def perform_deploy():
     base_dir = Path(__file__).parent.parent.parent

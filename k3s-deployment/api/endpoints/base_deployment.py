@@ -1,13 +1,11 @@
 from flask import jsonify
 from pathlib import Path
-import subprocess
-
-from logger import CustomLogger
-from endpoints.reset import perform_reset
-from endpoints.base_deployment_configmaps import generate_configmaps
-from endpoints.base_deployment_jobs import generate_jobs
-from endpoints.docker_auth import perform_docker_auth
-from endpoints.deploy import perform_deploy
+from ..logger import CustomLogger
+from reset import perform_reset
+from base_deployment_configmaps import generate_configmaps
+from base_deployment_jobs import generate_jobs
+from docker_auth import perform_docker_auth
+from deploy import perform_deploy
 
 logger = CustomLogger("base_deployment", Path(__file__).parent.parent / "system.log")
 

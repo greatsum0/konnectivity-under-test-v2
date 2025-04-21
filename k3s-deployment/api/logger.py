@@ -1,7 +1,6 @@
 import logging
 import sys
 from pathlib import Path
-from datetime import datetime
 
 class CustomLogger:
     _instances = {}

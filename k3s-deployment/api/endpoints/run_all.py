@@ -1,7 +1,7 @@
 from flask import jsonify
 from pathlib import Path
-from endpoints.run_changed import run_changed_jobs
-from logger import CustomLogger
+from ..endpoints.run_changed import run_changed_jobs
+from ..logger import CustomLogger
 
 logger = CustomLogger("run_all", Path(__file__).parent.parent / "system.log")
 

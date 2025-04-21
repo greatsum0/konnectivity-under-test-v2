@@ -1,8 +1,8 @@
 import subprocess
 import time
 from pathlib import Path
-from logger import CustomLogger
-from env_loader import get_env
+from ..logger import CustomLogger
+from ..env_loader import get_env
 
 logger = CustomLogger("run_changed", Path(__file__).parent.parent / "system.log")
 

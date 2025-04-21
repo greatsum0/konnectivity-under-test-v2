@@ -1,5 +1,5 @@
-from logger import CustomLogger
-from env_loader import get_env
+from ..logger import CustomLogger
+from ..env_loader import get_env
 from pathlib import Path
 import subprocess
 

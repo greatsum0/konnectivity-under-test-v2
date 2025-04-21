@@ -2,8 +2,42 @@ from flask import jsonify
 from pathlib import Path
 from endpoints.run_changed import run_changed_jobs
 from logger import CustomLogger
+from flasgger import swag_from
 
 logger = CustomLogger("run_all", Path(__file__).parent.parent / "system.log")
+
+@swag_from({
+    'tags': ['Scenarios'],
+    'summary': 'Trigger all scenario jobs',
+    'description': 'Scans the scenario directory for all YAML files and triggers a job for each one using the run_changed_jobs logic.',
+    'produces': ['application/json'],
+    'responses': {
+        200: {
+            'description': 'All jobs triggered successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'status': {
+                        'type': 'string',
+                        'example': 'all jobs triggered'
+                    }
+                }
+            }
+        },
+        500: {
+            'description': 'Scenario directory not found',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'error': {
+                        'type': 'string',
+                        'example': 'Scenario directory not found'
+                    }
+                }
+            }
+        }
+    }
+})
 
 def run_all_jobs():
     scenario_dir = Path(__file__).parent.parent.parent / "scenarios"

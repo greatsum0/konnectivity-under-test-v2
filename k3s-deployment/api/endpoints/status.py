@@ -4,9 +4,41 @@ from kubernetes.client.rest import ApiException
 from env_loader import load_environment, get_env
 from logger import CustomLogger
 from pathlib import Path
+from flasgger import swag_from
 
-# Singleton logger initialization
 logger = CustomLogger("status", Path(__file__).parent.parent / "system.log")
+@swag_from({
+    'tags': ['Cluster'],
+    'summary': 'Get cluster resource status',
+    'description': 'Fetches and logs the status of Kubernetes resources. Only a minimal success message is returned; full logs are in system.log.',
+    'produces': ['application/json'],
+    'responses': {
+        200: {
+            'description': 'Cluster status was checked successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'status': {
+                        'type': 'string',
+                        'example': 'status checked'
+                    }
+                }
+            }
+        },
+        500: {
+            'description': 'Failure loading kube config or accessing API',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'error': {
+                        'type': 'string',
+                        'example': 'Kubernetes API error'
+                    }
+                }
+            }
+        }
+    }
+})
 
 def cluster_status():
     load_environment()

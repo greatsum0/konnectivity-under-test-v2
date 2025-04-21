@@ -1,4 +1,5 @@
 from flask import jsonify
+from flasgger import swag_from
 from pathlib import Path
 from logger import CustomLogger
 from endpoints.reset import perform_reset
@@ -7,7 +8,40 @@ from endpoints.base_deployment_jobs import generate_jobs
 from endpoints.docker_auth import perform_docker_auth
 from endpoints.deploy import perform_deploy
 
-logger = CustomLogger("base_deployment", Path(__file__).parent.parent / "system.log")
+logger = CustomLogger("base-deployment", Path(__file__).parent.parent / "system.log")
+
+@swag_from({
+    'tags': ['Deployment'],
+    'summary': 'Run full base deployment pipeline',
+    'description': 'Performs a full base deployment including cluster reset, configmap generation, Docker auth, and base deployment.',
+    'produces': ['application/json'],
+    'responses': {
+        200: {
+            'description': 'Base deployment completed successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'status': {
+                        'type': 'string',
+                        'example': 'base deployment complete'
+                    }
+                }
+            }
+        },
+        500: {
+            'description': 'Error occurred during deployment steps',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'error': {
+                        'type': 'string',
+                        'example': 'Manifest generation failed'
+                    }
+                }
+            }
+        }
+    }
+})
 
 def base_deployment():
     logger.info("Starting base deployment process...")

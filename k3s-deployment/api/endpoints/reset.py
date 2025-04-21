@@ -6,8 +6,41 @@ from kubernetes.client.rest import ApiException
 from env_loader import load_environment, get_env
 from logger import CustomLogger
 from pathlib import Path
+from flasgger import swag_from
 
 logger = CustomLogger("reset", Path(__file__).parent.parent / "system.log")
+@swag_from({
+    'tags': ['Cluster'],
+    'summary': 'Reset the K3s cluster',
+    'description': 'Resets the Kubernetes cluster to initial state. This operation is irreversible.',
+    'produces': ['application/json'],
+    'responses': {
+        200: {
+            'description': 'Cluster successfully reset',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {
+                        'type': 'string',
+                        'example': 'Cluster has been reset'
+                    }
+                }
+            }
+        },
+        500: {
+            'description': 'Error occurred while resetting the cluster',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'error': {
+                        'type': 'string',
+                        'example': 'Kubernetes API error'
+                    }
+                }
+            }
+        }
+    }
+})
 
 def perform_reset():
     load_environment()
@@ -66,11 +99,3 @@ def perform_reset():
     except ApiException as e:
         logger.error(f"Kubernetes API error: {e}")
         return False
-
-# HTTP endpoint version
-def reset_cluster():
-    success = perform_reset()
-    if success:
-        return jsonify({"status": "reset", "exit_code": 0}), 200
-    else:
-        return jsonify({"error": "Reset failed"}), 500

@@ -3,8 +3,8 @@
 from flask import jsonify
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-from ..env_loader import load_environment, get_env
-from ..logger import CustomLogger
+from env_loader import load_environment, get_env
+from logger import CustomLogger
 from pathlib import Path
 
 logger = CustomLogger("reset", Path(__file__).parent.parent / "system.log")

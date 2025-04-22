@@ -66,7 +66,7 @@ logger = CustomLogger("copy_results", Path(__file__).parent.parent / "system.log
 })
 def copy_results():
     namespace = get_env("NAMESPACE", "kut-app")
-    dest_dir = Path.home() / "Desktop" / "kut-data"
+    dest_dir = Path.home() / "kut-data"
     client_dir = dest_dir / "client"
     server_dir = dest_dir / "server"
 

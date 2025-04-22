@@ -8,57 +8,31 @@ from flasgger import swag_from
 logger = CustomLogger("copy_results", Path(__file__).parent.parent / "system.log")
 
 @swag_from({
-    'tags': ['Scenarios'],
-    'summary': 'Trigger scenario jobs based on changed files',
-    'description': 'Triggers specific jobs based on the provided list of changed scenario files.',
-    'consumes': ['application/json'],
+    'tags': ['Results'],
+    'summary': 'Copy measurement results from Kubernetes pods',
+    'description': 'Copies result data from client and server pods into the local kut-data directory.',
     'produces': ['application/json'],
-    'parameters': [
-        {
-            'in': 'body',
-            'name': 'body',
-            'required': True,
-            'schema': {
-                'type': 'object',
-                'properties': {
-                    'message': {
-                        'type': 'string',
-                        'example': 'Test'
-                    },
-                    'changed_files': {
-                        'type': 'array',
-                        'items': {
-                            'type': 'string',
-                            'example': 'burst.yaml'
-                        }
-                    }
-                },
-                'required': ['message', 'changed_files']
-            }
-        }
-    ],
     'responses': {
         200: {
-            'description': 'Trigger successful',
+            'description': 'Copy completed successfully',
             'schema': {
                 'type': 'object',
                 'properties': {
                     'status': {
                         'type': 'string',
-                        'example': 'triggered'
+                        'example': 'copied'
                     }
                 }
             }
         },
-        400: {
-            'description': 'Invalid or missing JSON payload',
+        500: {
+            'description': 'Failure during copy operation',
             'schema': {
                 'type': 'object',
                 'properties': {
-                    'error': {
-                        'type': 'string',
-                        'example': 'No JSON received'
-                    }
+                    'status': {'type': 'string', 'example': 'error'},
+                    'message': {'type': 'string', 'example': 'Failed to get server pod name.'},
+                    'step': {'type': 'string', 'example': 'get-server-pod'}
                 }
             }
         }

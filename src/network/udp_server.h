@@ -1,24 +1,19 @@
 #pragma once
 
-#include <asio.hpp>
-#include <array>
-#include <memory>
-#include "iserver.h"
 #include "server_context.h"
+#include <asio.hpp>
 
-#define BUFFER_SIZE 4096
-
-class UdpServer final : public IServer {
+class UdpServer {
 public:
-    explicit UdpServer(ServerContext& context);
+    UdpServer(asio::io_context &io, const ServerContext &context);
 
-    void run() override;
+    void start();
 
 private:
     void receive();
 
-    ServerContext& context_;
     asio::ip::udp::socket socket_;
-    asio::ip::udp::endpoint remote_endpoint_;
-    std::array<char, BUFFER_SIZE> recv_buffer_{};
+    asio::ip::udp::endpoint remoteEndpoint_;
+    std::array<char, 2048> buffer_{};
+    const ServerContext &context_;
 };

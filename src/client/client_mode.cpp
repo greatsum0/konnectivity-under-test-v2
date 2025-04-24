@@ -13,6 +13,10 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <__filesystem/operations.h>
+
+#include "utils/csv_writer.h"
+#include "utils/pretty_printer.h"
 
 ClientMode::ClientMode(ClientContext context)
     : context(std::move(context)) {
@@ -39,9 +43,9 @@ void ClientMode::run() const {
 
     auto pattern = TrafficPatternFactory::create(context.traffic);
 
-    MetricCollector collector;
-    MetricScheduler metricSched(io, collector, context.metricIntervalSec);
-    metricSched.start();
+    MetricCollector collector(context.metricNames);
+    MetricScheduler metricScheduler(io, collector, context.metricIntervalSec);
+    metricScheduler.start();
 
     // MeteredClient: reports bytes to collector after each send
     struct MeteredClient : INetworkClient {
@@ -94,14 +98,22 @@ void ClientMode::run() const {
     std::cout << "[INFO] Disconnecting client...\n";
     baseClient->disconnect();
 
-    // 10) print metrics results
-    std::cout << "[INFO] Collected metrics:\n";
-    for (auto const &s: collector.getSamples()) {
-        std::cout
-                << "t=" << s.timestampSec << "s, "
-                << "bytes=" << s.bytesTransferred << ", "
-                << "Mbps=" << s.throughputMbps << ", "
-                << "CPU=" << s.cpuUsagePercent << "%\n";
-    }
+    std::cout << "[INFO] Metrics summary:\n";
+    PrettyPrinter::printTable(collector.getSamples(), context.metricNames,context.metricIntervalSec);
+
+    std::filesystem::create_directories(context.outputPath);
+
+    //datetime added to the filename
+    std::string datetime = std::to_string(std::time(nullptr));
+    // generate the filename
+    std::string clientCsv = context.outputPath + "/"+context.name+"_"+datetime+".csv";
+
+    CsvWriter::writeSamples(
+        clientCsv,
+        collector.getSamples(),
+        context.metricNames
+    );
+    std::cout << "[INFO] Client metrics written to " << clientCsv << "\n";
+
 }
 

@@ -31,9 +31,7 @@ void UdpClient::connect() {
 
 void UdpClient::send(const std::vector<uint8_t>& data) {
     try {
-        // connect() ile kurduğumuz endpoint'e bloklayıcı gönderim
-        size_t bytesSent = socket_.send(asio::buffer(data));
-        std::cout << "[INFO] UDP sent " << bytesSent << " bytes\n";
+        socket_.send(asio::buffer(data));
     } catch (const std::system_error& e) {
         std::cerr << "[ERROR] UDP send() failed: " << e.what() << "\n";
         throw;

@@ -21,14 +21,14 @@ protected:
         elapsed_(0)
     {}
 
-    /// Bu interval içinde burst dönemindeysek true döner.
+    // if we are in the burst part of the interval return true
     bool isInBurst(double intervalSec) {
         elapsed_ += intervalSec;
         double mod = std::fmod(elapsed_, burstIntervalSec_);
         return mod < burstDurationSec_;
     }
 
-    /// Sadece burst kısmını üretir. (0 ya da burstSizeBytes_)
+    // Generates only the burst part. (0 or burstSizeBytes_)
     std::vector<uint8_t> generateBurstPayload() {
         return std::vector<uint8_t>(
             static_cast<size_t>(burstSizeBytes_), 0xCD);

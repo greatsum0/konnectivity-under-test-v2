@@ -1,106 +1,28 @@
 #include <iostream>
 #include <string>
-#include <asio.hpp>
-#include <iomanip>
-
+#include "client_mode.h"
+#include "server_mode.h"
 #include "yaml_parser.h"
-#include "tcp_server.h"
-#include "udp_server.h"
-#include "tcp_client.h"
-#include "udp_client.h"
-#include "inetwork_client.h"
 #include "arg_parser.h"
 #include "client_context.h"
-
 #include "server_context.h"
-#include "traffic_pattern_factory.h"
-
-void runServer(const std::string &configPath) {
-    ServerConfig config = YamlParser::parseServerConfig(configPath);
-    asio::io_context ioContext;
-    ServerContext context(ioContext, config);
-
-    std::unique_ptr<IServer> tcpServer;
-    std::unique_ptr<IServer> udpServer;
-
-    for (const auto &[protocol, _]: context.config.listeners) {
-        if (protocol == "tcp") {
-            tcpServer = std::make_unique<TcpServer>(context);
-            tcpServer->run();
-            std::cout << "TCP server running on port " << context.getPortForProtocol("tcp") << std::endl;
-        } else if (protocol == "udp") {
-            udpServer = std::make_unique<UdpServer>(context);
-            udpServer->run();
-            std::cout << "UDP server running on port " << context.getPortForProtocol("udp") << std::endl;
-        }
-    }
-
-    context.ioContext.run();
-}
-
-void runClient(const std::string &configPath) {
-    Scenario scenario = YamlParser::parseScenario(configPath);
-    asio::io_context ioContext;
-    ClientContext ctx = ClientContext::fromScenario(ioContext, scenario);
-
-    std::cout << "Running scenario: " << scenario.name << std::endl;
-
-    std::shared_ptr<INetworkClient> client;
-    try {
-        if (ctx.protocol() == "tcp") {
-            auto tcpClient = std::make_shared<TcpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
-            tcpClient->connect();
-            client = tcpClient;
-        } else if (ctx.protocol() == "udp") {
-            client = std::make_shared<UdpClient>(ioContext, ctx.serverAddress(), ctx.serverPort());
-        } else {
-            std::cerr << "[ERROR] Unsupported protocol: " << ctx.protocol() << std::endl;
-            return;
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Connection failed: " << e.what() << std::endl;
-        return;
-    }
-
-    auto sendFunc = [client](const std::string &data) {
-        client->sendMessage(data);
-    };
-
-    auto trafficPattern = TrafficPatternFactory::createTrafficPattern(ctx, sendFunc);
-    if (!trafficPattern) {
-        std::cerr << "[ERROR] Failed to create traffic pattern for type: "
-                  << ctx.scenario.traffic_type << std::endl;
-        return;
-    }
-
-    trafficPattern->start();
-    ioContext.run();
-    client->printSummary();
-    std::cout << "Finished scenario: " << scenario.name << "\n" << std::endl;
-}
 
 
-
-
-int main(int argc, char *argv[]) {
+int main(int argc, char **argv) {
     ArgumentParser parser(argc, argv);
-
-    if (parser.shouldShowHelp()) {
-        std::cout << ArgumentParser::usageMessage() << std::endl;
-        return 0;
-    }
-
-    std::string mode = parser.getMode();
     std::string configPath = parser.getConfig();
+    std::string mode = parser.getMode(); // "client" or "server"
 
-    if (mode == "server") {
-        std::cout << "Starting server mode..." << std::endl;
-        runServer(configPath);
-    } else if (mode == "client") {
-        std::cout << "Starting client mode..." << std::endl;
-        runClient(configPath);
+    if (mode == "client") {
+        ClientContext clientCtx = YamlParser::parseClientContext(configPath);
+        ClientMode clientApp(clientCtx);
+        clientApp.run();
+    } else if (mode == "server") {
+        ServerContext serverCtx = YamlParser::parseServerContext(configPath);
+        ServerMode serverApp(serverCtx);
+        serverApp.run();
     } else {
-        std::cerr << "Unknown mode: " << mode << std::endl;
+        std::cerr << "Invalid mode: " << mode << "\n";
         return 1;
     }
 

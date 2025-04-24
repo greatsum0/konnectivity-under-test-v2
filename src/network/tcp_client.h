@@ -1,26 +1,24 @@
 #pragma once
 
-#include <asio.hpp>
-#include <iostream>
-#include <string>
-
 #include "inetwork_client.h"
+#include "client_context.h"
+#include <asio.hpp>
+#pragma once
 
 class TcpClient : public INetworkClient {
 public:
-    TcpClient(asio::io_context &io_context, std::string host, int port);
+    TcpClient(asio::io_context &io, const ClientContext &ctx);
 
-    void connect();
+    void connect() override;
 
-    void sendMessage(const std::string &message) override;
+    void send(const std::vector<uint8_t> &data) override;
 
-    void printSummary() const override;
+    void disconnect() override;
 
 private:
-    asio::io_context &io_context_;
+    asio::io_context &io_;
     asio::ip::tcp::socket socket_;
     asio::ip::tcp::resolver resolver_;
     std::string host_;
-    int port_;
-    int totalBytesSent_;
+    std::string portStr_;
 };

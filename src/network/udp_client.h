@@ -1,19 +1,24 @@
 #pragma once
 
-#include <asio.hpp>
-
 #include "inetwork_client.h"
+#include "client_context.h"
+#include <asio.hpp>
+#include <string>
+#include <vector>
 
 class UdpClient : public INetworkClient {
 public:
-    UdpClient(asio::io_context &io_context, const std::string &host, int port);
+    UdpClient(asio::io_context& io, const ClientContext& ctx);
 
-    void sendMessage(const std::string &message) override;
-
-    void printSummary() const override;
+    void connect() override;
+    void send(const std::vector<uint8_t>& data) override;
+    void disconnect() override;
 
 private:
-    asio::io_context &io_context_;
+    asio::io_context& io_;
     asio::ip::udp::socket socket_;
+    asio::ip::udp::resolver resolver_;
     asio::ip::udp::endpoint endpoint_;
+    std::string host_;
+    std::string portStr_;
 };

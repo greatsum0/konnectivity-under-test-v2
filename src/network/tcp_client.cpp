@@ -14,10 +14,8 @@ TcpClient::TcpClient(asio::io_context &io, const ClientContext &ctx)
 
 void TcpClient::connect() {
     try {
-        // DNS çözümleme ve endpoint listesi
         auto endpoints = resolver_.resolve(host_, portStr_);
 
-        // İlk başarılı endpoint'e bağlan
         asio::connect(socket_, endpoints);
         std::cout << "[INFO] TCP connected to " << host_ << ":" << portStr_ << "\n";
     } catch (const std::system_error &e) {
@@ -28,8 +26,7 @@ void TcpClient::connect() {
 
 void TcpClient::send(const std::vector<uint8_t> &data) {
     try {
-        size_t bytesTransferred = asio::write(socket_, asio::buffer(data));
-        std::cout << "[INFO] Sent " << bytesTransferred << " bytes\n";
+        asio::write(socket_, asio::buffer(data));
     } catch (const std::system_error &e) {
         std::cerr << "[ERROR] send() failed: " << e.what() << "\n";
         throw;

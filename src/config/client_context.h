@@ -1,28 +1,57 @@
+// src/config/ClientContext.h
 #pragma once
 
-#include "yaml_parser.h"
-#include "metric_collector.h"
-#include <asio.hpp>
-#include <memory>
+#include <string>
+#include <vector>
+
+struct ClientNetworkConfig {
+    std::string protocol;
+    std::string serverAddress;
+    int serverPort;
+};
+
+struct ClientTrafficConfig {
+    std::string type;           // e.g., "constant", "burst", ...
+    double durationSec;
+    double intervalSec;
+
+    // Common
+    double rateMbps = 0;
+
+    // Burst / RandomBurst / PureBurst
+    double burstSizeMb = 0;
+    double burstDurationSec = 0;
+    double burstIntervalSec = 0;
+
+    // Random
+    double maxRateMbps = 0;
+    double randomSeed = 0;
+
+    // RandomBurst only includes randomSeed
+    double minBurstSizeMb = 0;
+    double maxBurstSizeMb = 0;
+    double minBurstDurationMs = 0;
+    double maxBurstDurationMs = 0;
+    double minBurstIntervalMs = 0;
+    double maxBurstIntervalMs = 0;
+
+    // RampUp / RampDown
+    double rampUpTime = 0;
+    double rampDownTime = 0;
+
+    // Sinusoidal
+    double amplitude = 0;
+    double frequency = 0;
+
+};
 
 struct ClientContext {
-    asio::io_context &ioContext;
-    Scenario scenario;
-    std::shared_ptr<MetricCollector> metricCollector;
+    std::string name;
+    std::string outputPath;
 
-    explicit ClientContext(asio::io_context &ctx, const Scenario &sc)
-        : ioContext(ctx),
-          scenario(sc),
-          metricCollector(std::make_shared<MetricCollector>(ctx, sc.interval_sec, sc.enabled_metrics, sc.output_path)) {
-    }
-    static ClientContext fromScenario(asio::io_context& ctx, const Scenario& sc) {
-        return ClientContext(ctx, sc);
-    }
+    ClientNetworkConfig network;
+    ClientTrafficConfig traffic;
 
-    [[nodiscard]] std::string protocol() const { return scenario.protocol; }
-    [[nodiscard]] std::string serverAddress() const { return scenario.server_address; }
-    [[nodiscard]] int serverPort() const { return scenario.server_port; }
-    [[nodiscard]] int rateMbps() const { return scenario.rate_mbps; }
-    [[nodiscard]] int durationSec() const { return scenario.duration_sec; }
-    [[nodiscard]] double intervalSec() const { return scenario.interval_sec; }
+    double metricIntervalSec;
+    std::vector<std::string> metricNames;
 };

@@ -10,10 +10,11 @@
 #include <cstdio>
 #endif
 
-MetricCollector::MetricCollector()
+MetricCollector::MetricCollector(const std::vector<std::string> &metricNames)
     : bytesSinceLast_(0),
       startTime_(std::chrono::steady_clock::now()),
-      lastCollectTime_(startTime_)
+      lastCollectTime_(startTime_),
+      metricNames_(metricNames)
 #ifdef __linux__
     , coreCount_(sysconf(_SC_NPROCESSORS_ONLN))
 #endif
@@ -31,8 +32,8 @@ const std::vector<MetricSample> &MetricCollector::getSamples() const {
 
 void MetricCollector::collect() {
     auto now = std::chrono::steady_clock::now();
-    double interval = std::chrono::duration<double>(now - lastCollectTime_).count();
     double elapsed = std::chrono::duration<double>(now - startTime_).count();
+    double interval = std::chrono::duration<double>(now - lastCollectTime_).count();
 
     size_t bytes; {
         std::lock_guard<std::mutex> lk(mtx_);
@@ -40,17 +41,44 @@ void MetricCollector::collect() {
         bytesSinceLast_ = 0;
     }
 
-    double mbits = bytes * 8.0 / 1e6;
-    double mbps = interval > 0 ? mbits / interval : 0.0;
+    // Prepare sample with defaults
+    MetricSample sample{};
+    sample.timestampSec = elapsed;
+    sample.bytesTransferred = bytes;
+    sample.throughputMbps = 0.0;
+    sample.selfCpuUsage = 0.0;
+    sample.totalCpuUsage = 0.0;
+
+    //Bytes transferred
+    if (std::ranges::find(metricNames_, "bytes_transferred") != metricNames_.end()) {
+        sample.bytesTransferred = bytes;
+    }
+
+    // Throughput
+    if (std::ranges::find(metricNames_, "throughput") != metricNames_.end()) {
+        const double mbits = bytes * 8.0 / 1e6;
+        sample.throughputMbps = interval > 0 ? mbits / interval : 0.0;
+    }
+
+    // Per‐process CPU
+    if (std::ranges::find(metricNames_, "tool_cpu_util") != metricNames_.end()) {
 #ifdef __linux__
-    double cpu = readSelfCPUUsage();
+        sample.selfCpuUsage = readSelfCPUUsage();
 #else
-    double cpu = 0.0;
+        sample.selfCpuUsage = 1.0;
 #endif
+    }
 
-    MetricSample samp{elapsed, static_cast<double>(bytes), mbps, cpu};
-    samples_.push_back(samp);
+    // Total system CPU
+    if (std::ranges::find(metricNames_, "total_cpu_util") != metricNames_.end()) {
+#ifdef __linux__
+        sample.totalCpuUsage = readTotalCPUUsage();
+#else
+        sample.totalCpuUsage = 2.0;
+#endif
+    }
 
+    samples_.push_back(sample);
     lastCollectTime_ = now;
 }
 

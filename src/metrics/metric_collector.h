@@ -8,21 +8,25 @@ struct MetricSample {
     double timestampSec; // time passed since the start
     double bytesTransferred; // bytes in this interval
     double throughputMbps; // throughput in this interval
-    double cpuUsagePercent;
+    double selfCpuUsage; // CPU usage of this process
+    double totalCpuUsage; // CPU usage of all processes
 };
 
 class MetricCollector {
 public:
-    MetricCollector();
+    /**
+     * @param metricNames  e.g. {"total_cpu_util","tool_cpu_util","throughput"}
+     */
+    explicit MetricCollector(const std::vector<std::string>& metricNames);
 
-    // counts the sent bytes since the last collection
+    // add bytes from traffic send/receive
     void addBytesTransferred(size_t bytes);
 
-    // called every interval
+    // called by scheduler every interval
     void collect();
 
-    // returns the last collected sample
-    [[nodiscard]] const std::vector<MetricSample> &getSamples() const;
+    // results
+    const std::vector<MetricSample>& getSamples() const;
 
 private:
     std::mutex mtx_;
@@ -30,6 +34,11 @@ private:
     std::chrono::steady_clock::time_point startTime_;
     std::chrono::steady_clock::time_point lastCollectTime_;
     std::vector<MetricSample> samples_;
+    std::vector<std::string> metricNames_;
 
-    double sampleCpuUsage();
+#ifdef __linux__
+    int coreCount_;
+    double readTotalCPUUsage() const;
+    double readSelfCPUUsage() const;
+#endif
 };

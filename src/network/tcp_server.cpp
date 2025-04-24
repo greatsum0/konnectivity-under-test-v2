@@ -2,9 +2,8 @@
 #include <iostream>
 
 TcpServer::TcpServer(asio::io_context &io, const ServerContext &context)
-    : ioContext_(io),
-      acceptor_(ioContext_, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), context.port)),
-      context_(context) {
+    : INetworkServer(io, context),
+      acceptor_(io, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), context.port)) {
 }
 
 void TcpServer::start() {
@@ -12,7 +11,6 @@ void TcpServer::start() {
 }
 
 void TcpServer::startAccept() {
-    // ioContext_ üzerinden yeni socket yarat
     auto sock = std::make_shared<asio::ip::tcp::socket>(ioContext_);
     acceptor_.async_accept(*sock,
                            [this, sock](const asio::error_code &ec) {
@@ -29,7 +27,6 @@ void TcpServer::handleAccept(std::shared_ptr<asio::ip::tcp::socket> sock,
     } else {
         std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
     }
-    // Her durumda bir sonraki kabulü planla
     startAccept();
 }
 
@@ -38,8 +35,8 @@ void TcpServer::read(std::shared_ptr<asio::ip::tcp::socket> sock) {
         asio::buffer(buffer_),
         [this, sock](const asio::error_code &ec, std::size_t length) {
             if (!ec) {
-                // length kadar bayt okundu, işleyebilirsin...
-                read(sock); // aynı soketi okumaya devam et
+                // You can process `length` bytes from buffer_ here.
+                read(sock);
             } else {
                 std::cout << "[SERVER] Client disconnected: "
                         << ec.message() << "\n";

@@ -1,13 +1,13 @@
 #pragma once
 
-#include "server_context.h"
+#include "inetwork_server.h"
 #include <asio.hpp>
 
-class UdpServer {
+class UdpServer final : public INetworkServer {
 public:
     UdpServer(asio::io_context &io, const ServerContext &context);
 
-    void start();
+    void start() override;
 
 private:
     void receive();
@@ -15,5 +15,4 @@ private:
     asio::ip::udp::socket socket_;
     asio::ip::udp::endpoint remoteEndpoint_;
     std::array<char, 2048> buffer_{};
-    const ServerContext &context_;
 };

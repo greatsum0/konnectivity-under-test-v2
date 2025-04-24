@@ -1,53 +1,44 @@
+// src/traffic/RandomBurstTrafficPattern.cpp
 #include "random_burst_traffic_pattern.h"
-#include <iostream>
+#include <cmath>
 
-#include "client_context.h"
+RandomBurstTrafficPattern::RandomBurstTrafficPattern(unsigned seed,
+                                                     double burstSizeMinMb,
+                                                     double burstSizeMaxMb,
+                                                     double burstDurationMinSec,
+                                                     double burstDurationMaxSec,
+                                                     double burstIntervalMinSec,
+                                                     double burstIntervalMaxSec)
+    : rng_(seed),
+      sizeDist_(burstSizeMinMb * 1e6, burstSizeMaxMb * 1e6),
+      durDist_(burstDurationMinSec, burstDurationMaxSec),
+      intDist_(burstIntervalMinSec, burstIntervalMaxSec),
+      elapsed_(0),
+      nextBurstTime_(intDist_(rng_)),
+      currentBurstDuration_(0)
+{}
 
-RandomBurstTrafficPattern::RandomBurstTrafficPattern(ClientContext &context, SendFunction sendFunc)
-    : AbstractBurstPattern(context, std::move(sendFunc)) {
-    const int seed = context.scenario.random_seed;
-    rng_ = std::mt19937(seed);
+std::vector<uint8_t> RandomBurstTrafficPattern::generatePayload(double intervalSec) {
+    elapsed_ += intervalSec;
+    std::vector<uint8_t> buf;
 
-
-    // Convert burst size in MB to bytes
-    burst_size_dist_ = std::uniform_int_distribution<int>(context.scenario.min_burst_size_mb,
-                                                          context.scenario.max_burst_size_mb);
-    burst_duration_dist_ = std::uniform_int_distribution<int>(context.scenario.min_burst_duration_ms,
-                                                              context.scenario.max_burst_duration_ms);
-    burst_interval_dist_ = std::uniform_int_distribution<int>(context.scenario.min_burst_interval_ms,
-                                                              context.scenario.max_burst_interval_ms);
-
-    // set the first burst time
-    time_to_next_burst_ms_ = burst_interval_dist_(rng_);
-}
-
-std::string RandomBurstTrafficPattern::generatePayload() {
-    std::string payload;
-
-    if (in_burst_) {
-        if (current_burst_elapsed_ms_ >= current_burst_duration_ms_) {
-            // burst ended
-            in_burst_ = false;
-            current_burst_elapsed_ms_ = 0;
-            time_to_next_burst_ms_ = burst_interval_dist_(rng_);
-        } else {
-            // when the burst is active, send data
-            int burst_bytes = burst_size_dist_(rng_) * 1'000'000 / 8; // MB to bytes
-            payload = std::string(burst_bytes, 'r');
-
-
-            current_burst_elapsed_ms_ += interval_ms_;
-        }
-    } else {
-        if (time_to_next_burst_ms_ <= 0) {
-            // new burst started
-            in_burst_ = true;
-            current_burst_duration_ms_ = burst_duration_dist_(rng_);
-            current_burst_elapsed_ms_ = 0;
-        } else {
-            time_to_next_burst_ms_ -= interval_ms_;
-        }
+    if (elapsed_ < nextBurstTime_) {
+        return buf;
     }
 
-    return payload;
+    if (currentBurstDuration_ <= 0) {
+        currentBurstDuration_ = durDist_(rng_);
+    }
+
+    if (currentBurstDuration_ > 0) {
+        size_t bytes = static_cast<size_t>(std::round(sizeDist_(rng_)));
+        buf.insert(buf.end(), bytes, 0xAA);
+        currentBurstDuration_ -= intervalSec;
+    }
+
+    if (currentBurstDuration_ <= 0) {
+        nextBurstTime_ = elapsed_ + intDist_(rng_);
+    }
+
+    return buf;
 }

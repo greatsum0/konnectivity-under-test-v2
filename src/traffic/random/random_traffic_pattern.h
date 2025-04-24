@@ -1,32 +1,20 @@
 #pragma once
 
-#include "traffic_pattern.h"
-#include "client_context.h"
-#include <asio.hpp>
-#include <functional>
+#include "itraffic_pattern.h"
+#include <vector>
 #include <random>
-#include <memory>
+#include <cmath>
 
-class RandomTrafficPattern : public ITrafficPattern, public std::enable_shared_from_this<RandomTrafficPattern> {
+class RandomTrafficPattern : public ITrafficPattern {
 public:
-    using SendFunction = std::function<void(const std::string&)>;
 
-    RandomTrafficPattern(ClientContext& context, SendFunction sendFunc);
+    RandomTrafficPattern(unsigned seed, double maxRateMbps);
 
-    void start() override;
+    //Generate a payload sized according to a random rate over intervalSec.
+    std::vector<uint8_t> generatePayload(double intervalSec) override;
 
 private:
-    void scheduleNextSend();
-
-    ClientContext& context_;
-    SendFunction sendFunc_;
-    asio::steady_timer timer_;
-    int interval_ms_;
-    int elapsed_ms_;
-
-    int max_rate_mbps_;
     std::mt19937 rng_;
-    std::uniform_int_distribution<int> rate_dist_;
-    std::chrono::steady_clock::time_point startTime_;
-    std::chrono::steady_clock::time_point nextPlannedTime_;
+    std::uniform_real_distribution<double> distRate_;
+    double maxRateMbps_;
 };

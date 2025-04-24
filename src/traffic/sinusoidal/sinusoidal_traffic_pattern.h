@@ -1,34 +1,21 @@
 #pragma once
 
-#include "traffic_pattern.h"
-#include "client_context.h"
-#include <asio.hpp>
-#include <functional>
-#include <memory>
-#include <string>
+#include "itraffic_pattern.h"
+#include <vector>
+#include <cmath>
 
-class SinusoidalTrafficPattern : public ITrafficPattern, public std::enable_shared_from_this<SinusoidalTrafficPattern> {
+class SinusoidalTrafficPattern : public ITrafficPattern {
 public:
-    using SendFunction = std::function<void(const std::string&)>;
+    SinusoidalTrafficPattern(double baseRateMbps,
+                             double amplitudeMbps,
+                             double frequencyHz);
 
-    SinusoidalTrafficPattern(ClientContext& context, SendFunction sendFunc);
-
-    void start() override;
+    //Generate payload sized according to the current sinusoidal rate.
+    std::vector<uint8_t> generatePayload(double intervalSec) override;
 
 private:
-    void sendData();
-
-    ClientContext& context_;
-    SendFunction sendFunc_;
-    asio::steady_timer timer_;
-
-    // Sinusoidal parameters
-    double amplitude_;     // Mbps
-    double frequency_;     // Hz
-    double base_rate_;     // center of the wave rate, Mbps
-
-    int interval_ms_;      // (ms) send interval
-    int elapsed_ms_;       // (ms) total elapsed time
-    std::chrono::steady_clock::time_point startTime_;
-    std::chrono::steady_clock::time_point nextPlannedTime_;
+    double baseRateMbps_;    //< base (mean) rate in Mbps
+    double amplitudeMbps_;   //< amplitude of sine wave in Mbps
+    double omega_;           //< angular frequency = 2pi·frequencyHz
+    double elapsedTime_;     //< accumulated time in seconds
 };

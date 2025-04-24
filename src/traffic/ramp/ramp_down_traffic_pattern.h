@@ -4,14 +4,9 @@
 
 class RampDownTrafficPattern : public AbstractRampPattern {
 public:
-    using SendFunction = std::function<void(const std::string&)>;
-
-    RampDownTrafficPattern(ClientContext& context, SendFunction sendFunc);
+    RampDownTrafficPattern(double maxRateMbps, double rampTimeSec);
 
 protected:
-    int calculateRateMbps(int elapsed_ms) override;
-
-private:
-    int starting_rate_mbps_;
-    int ramp_down_duration_ms_;
+    // Rate decreases linearly from maxRate → 0, then holds at 0.
+    double calculateRate(double elapsedSec) const override;
 };

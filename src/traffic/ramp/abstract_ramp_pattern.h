@@ -1,29 +1,21 @@
 #pragma once
 
-#include "traffic_pattern.h"
-#include "client_context.h"
-#include <asio.hpp>
-#include <functional>
-#include <memory>
+#include "itraffic_pattern.h"
+#include <vector>
+#include <cstdint>
 
-class AbstractRampPattern : public ITrafficPattern, public std::enable_shared_from_this<AbstractRampPattern> {
+class AbstractRampPattern : public ITrafficPattern {
 public:
-    using SendFunction = std::function<void(const std::string&)>;
+    AbstractRampPattern(double maxRateMbps, double rampTimeSec);
 
-    AbstractRampPattern(ClientContext& context, SendFunction sendFunc);
-
-    void start() override;
+    // Generate payload for the given interval.
+    std::vector<uint8_t> generatePayload(double intervalSec) override;
 
 protected:
-    virtual int calculateRateMbps(int elapsed_ms) = 0;
+    // Subclasses implement to compute current rate at elapsed time.
+    virtual double calculateRate(double elapsedSec) const = 0;
 
-    void scheduleNextSend();
-
-    ClientContext& context_;
-    SendFunction sendFunc_;
-    asio::steady_timer timer_;
-    int interval_ms_;
-    int elapsed_ms_;
-    std::chrono::steady_clock::time_point startTime_;
-    std::chrono::steady_clock::time_point nextPlannedTime_;
+    double maxRateMbps_; //< top rate in Mbps
+    double rampTimeSec_; //< ramp duration in seconds
+    double elapsedSec_; //< accumulated time since start
 };

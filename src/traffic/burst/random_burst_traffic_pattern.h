@@ -1,25 +1,30 @@
 #pragma once
 
-#include "abstract_burst_pattern.h"
+#include "itraffic_pattern.h"
+#include <vector>
 #include <random>
 
-class RandomBurstTrafficPattern : public AbstractBurstPattern {
+
+class RandomBurstTrafficPattern : public ITrafficPattern {
 public:
-    using SendFunction = std::function<void(const std::string &)>;
 
-    RandomBurstTrafficPattern(ClientContext &context, SendFunction sendFunc);
+    RandomBurstTrafficPattern(unsigned seed,
+                              double burstSizeMinMb,
+                              double burstSizeMaxMb,
+                              double burstDurationMinSec,
+                              double burstDurationMaxSec,
+                              double burstIntervalMinSec,
+                              double burstIntervalMaxSec);
 
-protected:
-    std::string generatePayload() override;
+    std::vector<uint8_t> generatePayload(double intervalSec) override;
 
 private:
-    std::mt19937 rng_;  // random number generator
-    std::uniform_int_distribution<int> burst_size_dist_;
-    std::uniform_int_distribution<int> burst_duration_dist_;
-    std::uniform_int_distribution<int> burst_interval_dist_;
+    std::mt19937 rng_;
+    std::uniform_real_distribution<double> sizeDist_;
+    std::uniform_real_distribution<double> durDist_;
+    std::uniform_real_distribution<double> intDist_;
 
-    int current_burst_duration_ms_ = 0;
-    int current_burst_elapsed_ms_ = 0;
-    int time_to_next_burst_ms_ = 0;
-    bool in_burst_ = false;
+    double elapsed_;
+    double nextBurstTime_;
+    double currentBurstDuration_;
 };

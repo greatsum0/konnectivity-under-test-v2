@@ -1,32 +1,36 @@
+// src/traffic/AbstractBurstPattern.h
 #pragma once
 
-#include "traffic_pattern.h"
-#include <asio/steady_timer.hpp>
-#include <functional>
-#include <memory>
+#include "itraffic_pattern.h"
+#include <vector>
+#include <cmath>
 
-// Forward declarations
-class ClientContext;
-
-class AbstractBurstPattern : public ITrafficPattern, public std::enable_shared_from_this<AbstractBurstPattern> {
-public:
-    using SendFunction = std::function<void(const std::string&)>;
-
-    AbstractBurstPattern(ClientContext& context, SendFunction sendFunc);
-    void start() override;
-
+class AbstractBurstPattern : public ITrafficPattern {
 protected:
-    virtual std::string generatePayload() = 0;
-    void scheduleNextSend();
+    double burstSizeBytes_;
+    double burstDurationSec_;
+    double burstIntervalSec_;
+    double elapsed_;
 
-    ClientContext& context_;
-    SendFunction sendFunc_;
-    asio::steady_timer timer_;
-    int interval_ms_;
-    int elapsed_ms_;
-    int burst_interval_ms_ = 0;
-    int burst_duration_ms_ = 0;
-    std::chrono::steady_clock::time_point startTime_;
-    std::chrono::steady_clock::time_point nextPlannedTime_;
+    AbstractBurstPattern(double burstSizeMb,
+                         double burstDurationSec,
+                         double burstIntervalSec)
+      : burstSizeBytes_(burstSizeMb * 1e6),
+        burstDurationSec_(burstDurationSec),
+        burstIntervalSec_(burstIntervalSec),
+        elapsed_(0)
+    {}
 
+    /// Bu interval içinde burst dönemindeysek true döner.
+    bool isInBurst(double intervalSec) {
+        elapsed_ += intervalSec;
+        double mod = std::fmod(elapsed_, burstIntervalSec_);
+        return mod < burstDurationSec_;
+    }
+
+    /// Sadece burst kısmını üretir. (0 ya da burstSizeBytes_)
+    std::vector<uint8_t> generateBurstPayload() {
+        return std::vector<uint8_t>(
+            static_cast<size_t>(burstSizeBytes_), 0xCD);
+    }
 };

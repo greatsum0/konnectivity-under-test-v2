@@ -1,50 +1,35 @@
 #pragma once
 
-#include <asio.hpp>
 #include <vector>
-#include <string>
-#include <memory>
+#include <mutex>
+#include <chrono>
 
-#include "metric_data_manager.h"
+struct MetricSample {
+    double timestampSec; // time passed since the start
+    double bytesTransferred; // bytes in this interval
+    double throughputMbps; // throughput in this interval
+    double cpuUsagePercent;
+};
 
 class MetricCollector {
 public:
-    MetricCollector(asio::io_context &io_context,
-                    double interval_sec,
-                    const std::vector<std::string> &enabledMetrics,
-                    std::string outputCsvPath);
+    MetricCollector();
 
-    void start();
+    // counts the sent bytes since the last collection
+    void addBytesTransferred(size_t bytes);
 
-    void start(std::chrono::steady_clock::time_point referenceTime);
+    // called every interval
+    void collect();
 
-    void stop();
-
-    void addBytesTransferred(int bytes);
-
-    void reset();
-
-    [[nodiscard]] std::shared_ptr<MetricDataManager> getManager() const;
+    // returns the last collected sample
+    [[nodiscard]] const std::vector<MetricSample> &getSamples() const;
 
 private:
-    void measure();
+    std::mutex mtx_;
+    size_t bytesSinceLast_;
+    std::chrono::steady_clock::time_point startTime_;
+    std::chrono::steady_clock::time_point lastCollectTime_;
+    std::vector<MetricSample> samples_;
 
-    [[nodiscard]] bool isMetricEnabled(const std::string &name) const;
-
-    [[nodiscard]] double readTotalCPUUsage() const;
-
-    [[nodiscard]] double readSelfCPUUsage() const;
-
-    [[nodiscard]] double getProcessCPUUsage() const;
-
-    asio::steady_timer timer_;
-    double interval_sec_;
-    int bytesTransferred_;
-    double elapsed_sec_;
-    std::vector<std::string> enabledMetrics_;
-    std::string outputCsvPath_;
-    MetricDataManager dataManager_;
-    std::chrono::steady_clock::time_point lastWallTime_;
-
-    long coreCount_; // NEW: core count stored at construction time
+    double sampleCpuUsage();
 };

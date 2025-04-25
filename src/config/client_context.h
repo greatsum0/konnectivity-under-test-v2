@@ -17,6 +17,7 @@ struct ClientTrafficConfig {
 
     // Common
     double rateMbps = 0;
+    int packetSize = 0;        // in bytes
 
     // Burst / RandomBurst / PureBurst
     double burstSizeMb = 0;

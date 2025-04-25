@@ -52,6 +52,8 @@ ClientContext YamlParser::parseClientContext(const std::string &path) {
 
     if (params["rate_mbps"]) context.traffic.rateMbps = params["rate_mbps"].as<double>();
 
+    if (params["packet_size"]) context.traffic.packetSize = params["packet_size"].as<int>();
+
     if (params["burst_size_mb"]) context.traffic.burstSizeMb = params["burst_size_mb"].as<double>();
     if (params["burst_duration_sec"]) context.traffic.burstDurationSec = params["burst_duration_sec"].as<double>();
     if (params["burst_interval_sec"]) context.traffic.burstIntervalSec = params["burst_interval_sec"].as<double>();

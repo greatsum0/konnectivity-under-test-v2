@@ -12,7 +12,8 @@ public:
                      INetworkClient &client,
                      ITrafficPattern &pattern,
                      double intervalSec,
-                     double durationSec);
+                     double durationSec,
+                     size_t packetSize);
 
     void start();
 
@@ -27,4 +28,5 @@ private:
     std::size_t maxIterations_;
     std::size_t currentIteration_;
     std::chrono::duration<double> interval_;
+    size_t packetSize_;
 };

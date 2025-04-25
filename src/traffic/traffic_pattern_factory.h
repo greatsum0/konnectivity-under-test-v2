@@ -44,6 +44,7 @@ public:
         else if (t == "random_burst") {
             return std::make_unique<RandomBurstTrafficPattern>(
                 static_cast<unsigned>(cfg.randomSeed),
+                cfg.rateMbps,
                 cfg.minBurstSizeMb,
                 cfg.maxBurstSizeMb,
                 cfg.minBurstDurationMs,

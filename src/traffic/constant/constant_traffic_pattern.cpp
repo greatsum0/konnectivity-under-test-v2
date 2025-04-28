@@ -14,7 +14,7 @@ std::size_t ConstantTrafficPattern::computeMaxPackets(double durationSec, const 
     );
 }
 
-std::chrono::microseconds ConstantTrafficPattern::generateDelay(const size_t packetSize) {
+std::chrono::microseconds ConstantTrafficPattern::generateDelay(const size_t packetSize, double intervalSec) {
     const double bitsPerPacket = static_cast<double>(packetSize) * 8.0;
     const double rateBps = rateMbps_ * 1e6;
     const double dtSeconds = bitsPerPacket / rateBps;

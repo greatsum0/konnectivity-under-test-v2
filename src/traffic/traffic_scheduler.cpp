@@ -37,7 +37,8 @@ void TrafficScheduler::sendOne(const asio::error_code &ec) {
     client_.send(packetBuffer_);
 
     // 2) ask pattern how long until the *next* send
-    const auto delay = pattern_.generateDelay(context_.traffic.packetSize);
+    const auto delay = pattern_.generateDelay(context_.traffic.packetSize,
+                                               context_.traffic.intervalSec);
 
     // 3) advance our absolute nextTime_ and schedule
     nextTime_ += delay;

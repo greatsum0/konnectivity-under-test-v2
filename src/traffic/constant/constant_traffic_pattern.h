@@ -10,7 +10,7 @@ public:
     explicit ConstantTrafficPattern(double rateMbps);
 
     [[nodiscard]] std::size_t computeMaxPackets(double durationSec, size_t packetSize) const override;
-    std::chrono::microseconds generateDelay(size_t packetSize) override;
+    std::chrono::microseconds generateDelay(size_t packetSize, double intervalSec) override;
 private:
     double rateMbps_;
 };

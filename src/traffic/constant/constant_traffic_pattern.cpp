@@ -5,7 +5,7 @@ ConstantTrafficPattern::ConstantTrafficPattern(const double rateMbps)
     : rateMbps_(rateMbps) {
 }
 
-std::size_t ConstantTrafficPattern::computeMaxPackets(double durationSec, const size_t packetSize) const {
+std::size_t ConstantTrafficPattern::computeMaxPackets(const double durationSec, const size_t packetSize) const {
     const double totalBits = rateMbps_ * durationSec * 1e6; // Convert Mbps to bits
     const double bitsPerPacket = static_cast<double>(packetSize) * 8.0;
     // ceil to cover the full bit‐budget

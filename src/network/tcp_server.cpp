@@ -3,7 +3,7 @@
 
 TcpServer::TcpServer(asio::io_context &io, const ServerContext &context)
     : INetworkServer(io, context),
-      acceptor_(io, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), context.port)) {
+      acceptor_(io, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), context.network.port)) {
 }
 
 void TcpServer::start() {

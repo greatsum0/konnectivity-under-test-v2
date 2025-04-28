@@ -3,7 +3,7 @@
 
 UdpServer::UdpServer(asio::io_context &io, const ServerContext &context)
     : INetworkServer(io, context),
-      socket_(io, asio::ip::udp::endpoint(asio::ip::udp::v4(), context.port)) {
+      socket_(io, asio::ip::udp::endpoint(asio::ip::udp::v4(), context.network.port)) {
 }
 
 void UdpServer::start() {

@@ -25,6 +25,7 @@ ClientMode::ClientMode(ClientContext context)
 void ClientMode::run() const {
     asio::io_context io;
 
+    // 1) pick TCP or UDP
     std::unique_ptr<INetworkClient> baseClient;
     if (context.network.protocol == "tcp") {
         baseClient = std::make_unique<TcpClient>(io, context);
@@ -32,52 +33,47 @@ void ClientMode::run() const {
         baseClient = std::make_unique<UdpClient>(io, context);
     } else {
         std::cerr << "[ERROR] Unsupported protocol: "
-                << context.network.protocol << "\n";
+                  << context.network.protocol << "\n";
         return;
     }
 
+    // 2) connect
     baseClient->connect();
     std::cout << "[INFO] Connected to "
-            << context.network.serverAddress << ":"
-            << context.network.serverPort << "\n";
+              << context.network.serverAddress << ":"
+              << context.network.serverPort << "\n";
 
-    auto pattern = TrafficPatternFactory::create(context.traffic);
-
+    // 3) metrics
     MetricCollector collector(context.metricNames);
     MetricScheduler metricScheduler(io, collector, context.metricIntervalSec);
     metricScheduler.start();
 
-    // MeteredClient: reports bytes to collector after each send
+    // 4) wrap client to count bytes sent
     struct MeteredClient : INetworkClient {
         INetworkClient &client;
         MetricCollector &mc;
-
         MeteredClient(INetworkClient &c, MetricCollector &m)
-            : client(c), mc(m) {
-        }
-
-        void connect() override { client.connect(); }
-
+          : client(c), mc(m) {}
+        void connect() override            { client.connect(); }
         void send(const std::vector<uint8_t> &data) override {
             client.send(data);
             mc.addBytesTransferred(data.size());
         }
-
-        void disconnect() override { client.disconnect(); }
+        void disconnect() override         { client.disconnect(); }
     } metered(*baseClient, collector);
 
-    // 6) Asio traffic scheduler
+    // 5) constant-rate scheduler
     TrafficScheduler trafficSched(
         io,
         metered,
-        *pattern,
-        context.traffic.intervalSec,
-        context.traffic.durationSec
+        /* rateMbps: */    context.traffic.rateMbps,
+        /* packetSize: */  context.traffic.packetSize,
+        /* durationSec: */ context.traffic.durationSec
     );
     trafficSched.start();
     std::cout << "[INFO] Traffic scheduler started\n";
 
-    //  Set a timer to stop the I/O context after the specified duration
+    // 6) stop IO loop after durationSec
     asio::steady_timer exitTimer(io);
     exitTimer.expires_after(
         std::chrono::duration_cast<asio::steady_timer::duration>(
@@ -89,31 +85,13 @@ void ClientMode::run() const {
         io.stop();
     });
 
-    // 8) Event loop
+    // 7) run!
     std::cout << "[INFO] Running I/O context...\n";
     io.run();
 
-    // 9) Close the connection
-
+    // 8) teardown
     std::cout << "[INFO] Disconnecting client...\n";
     baseClient->disconnect();
-
-    std::cout << "[INFO] Metrics summary:\n";
-    PrettyPrinter::printTable(collector.getSamples(), context.metricNames,context.metricIntervalSec);
-
-    std::filesystem::create_directories(context.outputPath);
-
-    //datetime added to the filename
-    std::string datetime = std::to_string(std::time(nullptr));
-    // generate the filename
-    std::string clientCsv = context.outputPath + "/"+context.name+"_"+datetime+".csv";
-
-    CsvWriter::writeSamples(
-        clientCsv,
-        collector.getSamples(),
-        context.metricNames
-    );
-    std::cout << "[INFO] Client metrics written to " << clientCsv << "\n";
-
 }
+
 

@@ -1,47 +1,56 @@
+// traffic_scheduler.cpp
 #include "traffic_scheduler.h"
-#include <chrono>
-#include <thread>
 
-TrafficScheduler::TrafficScheduler(asio::io_context &io,
-                                   INetworkClient &client,
-                                   ITrafficPattern &pattern,
-                                   double intervalSec,
-                                   double durationSec,
-                                   size_t packetSize)
-    : io_(io),
-      timer_(io_),
-      client_(client),
-      pattern_(pattern),
-      nextTime_(std::chrono::steady_clock::now()),
-      interval_(intervalSec),
-      currentIteration_(0),
-      packetSize_(packetSize){
-    maxIterations_ = static_cast<std::size_t>(durationSec / intervalSec);
+TrafficScheduler::TrafficScheduler(asio::io_context& io,
+                                   INetworkClient& client,
+                                   double rateMbps,
+                                   size_t packetSize,
+                                   double durationSec)
+  : io_(io),
+    timer_(io_),
+    client_(client),
+    packetBuffer_(packetSize, 0xAB)
+{
+    // 1) compute bits per packet, and inter‐packet dt
+    const double bitsPerPacket = static_cast<double>(packetSize) * 8.0;
+    const double rateBps        = rateMbps * 1e6;
+    const double dtSeconds      = bitsPerPacket / rateBps;
+
+    packetDelay_ = std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::duration<double>(dtSeconds));
+
+    // 2) compute how many packets to send in total
+    const double totalBits = rateBps * durationSec;
+    maxPackets_ = static_cast<size_t>(std::ceil(totalBits / bitsPerPacket));
+
+    // 3) set our first "wake" to now
+    nextTime_ = std::chrono::steady_clock::now();
 }
 
 void TrafficScheduler::start() {
-    scheduleNext();
-}
-
-void TrafficScheduler::scheduleNext() {
-    if (currentIteration_ >= maxIterations_)
-        return;
-
-    nextTime_ += std::chrono::duration_cast<std::chrono::steady_clock::duration>(interval_);
+    // schedule the very first send
     timer_.expires_at(nextTime_);
-    timer_.async_wait([this](const asio::error_code &ec) {
-        if (!ec) {
-            auto payload = pattern_.generatePayload(interval_.count());
-
-            for (size_t i = 0; i < payload.size(); i += packetSize_) {
-                const size_t len = std::min(packetSize_, payload.size() - i);
-                std::vector packet(payload.begin() + i, payload.begin() + i + len);
-                client_.send(packet);
-            }
-
-            ++currentIteration_;
-            scheduleNext();
-        }
-    });
+    timer_.async_wait(
+        [this](auto ec){ sendOne(ec); }
+    );
 }
 
+void TrafficScheduler::sendOne(const asio::error_code& ec) {
+    if (ec || packetsSent_ >= maxPackets_) {
+        // either cancelled or done
+        return;
+    }
+
+    // 1) send the packet
+    client_.send(packetBuffer_);
+    ++packetsSent_;
+
+    // 2) compute the next absolute send‐time
+    nextTime_ += packetDelay_;
+
+    // 3) schedule the next send
+    timer_.expires_at(nextTime_);
+    timer_.async_wait(
+        [this](auto ec){ sendOne(ec); }
+    );
+}

@@ -10,7 +10,7 @@
 // #include "traffic/burst/burst_traffic_pattern.h"
 // #include "traffic/burst/pure_burst_traffic_pattern.h"
 // #include "traffic/burst/random_burst_traffic_pattern.h"
-// #include "traffic/sinusoidal/sinusoidal_traffic_pattern.h"
+#include "traffic/sinusoidal/sinusoidal_traffic_pattern.h"
 #include "traffic/ramp/ramp_up_traffic_pattern.h"
 #include "traffic/ramp/ramp_down_traffic_pattern.h"
 // #include "traffic/random/random_traffic_pattern.h"
@@ -18,8 +18,8 @@
 
 class TrafficPatternFactory {
 public:
-    static std::unique_ptr<ITrafficPattern> create(const ClientTrafficConfig& cfg) {
-        const auto& t = cfg.type;
+    static std::unique_ptr<ITrafficPattern> create(const ClientTrafficConfig &cfg) {
+        const auto &t = cfg.type;
 
         if (t == "constant") {
             return std::make_unique<ConstantTrafficPattern>(
@@ -53,20 +53,21 @@ public:
         //         cfg.maxBurstIntervalMs
         //     );
         // }
-        // else if (t == "sinusoidal") {
-        //     return std::make_unique<SinusoidalTrafficPattern>(
-        //         cfg.rateMbps,
-        //         cfg.amplitude,
-        //         cfg.frequency
-        //     );
-        // }
-        else if (t == "ramp_up") {
+        else if (t == "sinusoidal") {
+            auto &parameter = cfg;
+            double mean = parameter.rateMbps; // YAML: rate_mbps
+            double amplitude = parameter.amplitude; // YAML: amplitude
+            double frequency = parameter.frequency; // YAML: frequency (Hz)
+
+            return std::make_unique<SinusoidalTrafficPattern>(
+                mean, amplitude, frequency
+            );
+        } else if (t == "ramp_up") {
             return std::make_unique<RampUpTrafficPattern>(
                 cfg.rateMbps,
                 cfg.rampUpTime
             );
-        }
-        else if (t == "ramp_down") {
+        } else if (t == "ramp_down") {
             return std::make_unique<RampDownTrafficPattern>(
                 cfg.rateMbps,
                 cfg.rampDownTime

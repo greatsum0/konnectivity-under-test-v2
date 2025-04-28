@@ -1,21 +1,30 @@
 #pragma once
 
 #include "itraffic_pattern.h"
-#include <vector>
-#include <cmath>
+#include <chrono>
+#include <cstddef>
 
-class SinusoidalTrafficPattern : public ITrafficPattern {
+class SinusoidalTrafficPattern final : public ITrafficPattern {
 public:
-    SinusoidalTrafficPattern(double baseRateMbps,
+    /// @param meanRateMbps   the center rate (Mbps) around which you oscillate
+    /// @param amplitudeMbps  how far above/below mean you go (± Mbps)
+    /// @param frequencyHz    cycles per second (1 / period)
+    SinusoidalTrafficPattern(double meanRateMbps,
                              double amplitudeMbps,
                              double frequencyHz);
 
-    //Generate payload sized according to the current sinusoidal rate.
-    std::vector<uint8_t> generatePayload(double intervalSec) override;
+    // Estimate total packets based on the *mean* rate
+    [[nodiscard]] std::size_t computeMaxPackets(double durationSec, size_t packetSize) const override;
+
+    // Compute per‐send delay based on instantaneous sine rate
+    std::chrono::microseconds generateDelay(size_t packetSize, double intervalSec) override;
 
 private:
-    double baseRateMbps_;    //< base (mean) rate in Mbps
-    double amplitudeMbps_;   //< amplitude of sine wave in Mbps
-    double omega_;           //< angular frequency = 2pi·frequencyHz
-    double elapsedTime_;     //< accumulated time in seconds
+    // instantaneous rate (Mbps) at t seconds since start
+    [[nodiscard]] double currentRateMbps(double elapsedSec) const;
+
+    const double meanRateMbps_;
+    const double amplitudeMbps_;
+    const double frequencyHz_;
+    const std::chrono::steady_clock::time_point startTime_;
 };

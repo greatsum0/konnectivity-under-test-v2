@@ -3,11 +3,7 @@
 #include <string>
 #include <vector>
 
-struct ServerMeasurementConfig {
-    double intervalSec;
-    std::string interface;
-    std::vector<std::string> metricNames;
-};
+#include "measurement_config.h"
 
 struct ServerNetworkConfig {
     std::string protocol; // "tcp" or "udp"
@@ -19,7 +15,7 @@ struct ServerContext {
     std::string name;
     std::string outputPath;
 
-    ServerMeasurementConfig measurement;
+    MeasurementConfig measurement;
     ServerNetworkConfig network;
 
 };

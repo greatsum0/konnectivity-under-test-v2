@@ -1,19 +1,14 @@
-// src/config/ClientContext.h
 #pragma once
 
 #include <string>
 #include <vector>
 
+#include "measurement_config.h"
+
 struct ClientNetworkConfig {
     std::string protocol;
     std::string serverAddress;
     int serverPort;
-};
-
-struct ClientMeasurementConfig {
-    double intervalSec;
-    std::string interface;
-    std::vector<std::string> metricNames;
 };
 
 struct ClientTrafficConfig {
@@ -58,5 +53,5 @@ struct ClientContext {
 
     ClientNetworkConfig network;
     ClientTrafficConfig traffic;
-    ClientMeasurementConfig measurement;
+    MeasurementConfig measurement;
 };

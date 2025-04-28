@@ -39,7 +39,9 @@ void TcpServer::read(std::shared_ptr<asio::ip::tcp::socket> sock) {
                 read(sock);
             } else {
                 std::cout << "[SERVER] Client disconnected: "
-                        << ec.message() << "\n";
+                          << ec.message() << "\n";
+                // stop the I/O context so ServerMode::run() can proceed
+                ioContext_.stop();
             }
         });
 }

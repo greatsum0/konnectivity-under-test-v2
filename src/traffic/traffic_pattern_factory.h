@@ -11,8 +11,8 @@
 // #include "traffic/burst/pure_burst_traffic_pattern.h"
 // #include "traffic/burst/random_burst_traffic_pattern.h"
 // #include "traffic/sinusoidal/sinusoidal_traffic_pattern.h"
-// #include "traffic/ramp/ramp_up_traffic_pattern.h"
-// #include "traffic/ramp/ramp_down_traffic_pattern.h"
+#include "traffic/ramp/ramp_up_traffic_pattern.h"
+#include "traffic/ramp/ramp_down_traffic_pattern.h"
 // #include "traffic/random/random_traffic_pattern.h"
 
 
@@ -60,18 +60,18 @@ public:
         //         cfg.frequency
         //     );
         // }
-        // else if (t == "ramp_up") {
-        //     return std::make_unique<RampUpTrafficPattern>(
-        //         cfg.rateMbps,
-        //         cfg.rampUpTime
-        //     );
-        // }
-        // else if (t == "ramp_down") {
-        //     return std::make_unique<RampDownTrafficPattern>(
-        //         cfg.rateMbps,
-        //         cfg.rampDownTime
-        //     );
-        // }
+        else if (t == "ramp_up") {
+            return std::make_unique<RampUpTrafficPattern>(
+                cfg.rateMbps,
+                cfg.rampUpTime
+            );
+        }
+        else if (t == "ramp_down") {
+            return std::make_unique<RampDownTrafficPattern>(
+                cfg.rateMbps,
+                cfg.rampDownTime
+            );
+        }
         // else if (t == "random") {
         //     return std::make_unique<RandomTrafficPattern>(
         //         static_cast<unsigned>(cfg.randomSeed),

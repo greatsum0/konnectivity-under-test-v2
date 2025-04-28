@@ -1,21 +1,30 @@
+// abstract_ramp_pattern.h
 #pragma once
 
 #include "itraffic_pattern.h"
-#include <vector>
-#include <cstdint>
+#include <chrono>
 
 class AbstractRampPattern : public ITrafficPattern {
 public:
-    AbstractRampPattern(double maxRateMbps, double rampTimeSec);
+    /// @param targetRateMbps  The peak rate (Mbps) at the end of the ramp
+    /// @param rampTimeSec  How many seconds the ramp should take
+    AbstractRampPattern(double targetRateMbps, double rampTimeSec);
 
-    // Generate payload for the given interval.
-    std::vector<uint8_t> generatePayload(double intervalSec) override;
+    /// Estimate how many fixed-size packets you’ll send over durationSec.
+    /// Uses the *average* rate over the ramp (i.e. half the peak if duration==rampTime)
+    [[nodiscard]]
+    std::size_t computeMaxPackets(double durationSec,
+                                  std::size_t packetSize) const override;
+
+    /// Compute inter-packet delay based on the *current* rate at this moment.
+    std::chrono::microseconds generateDelay(size_t packetSize, double intervalSec) override;
 
 protected:
-    // Subclasses implement to compute current rate at elapsed time.
-    virtual double calculateRate(double elapsedSec) const = 0;
+    /// Returns the current instantaneous rate (Mbps).
+    /// Subclasses implements its own ramp shape here.
+    [[nodiscard]] virtual double currentRateFactor(double elapsedSec) const = 0;
 
-    double maxRateMbps_; //< top rate in Mbps
-    double rampTimeSec_; //< ramp duration in seconds
-    double elapsedSec_; //< accumulated time since start
+    double targetRateMbps;
+    double rampTimeSec_;
+    std::chrono::steady_clock::time_point startTime_;
 };

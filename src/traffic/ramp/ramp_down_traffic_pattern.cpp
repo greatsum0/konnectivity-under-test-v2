@@ -1,14 +1,16 @@
 #include "ramp_down_traffic_pattern.h"
 
-RampDownTrafficPattern::RampDownTrafficPattern(double maxRateMbps, double rampTimeSec)
-  : AbstractRampPattern(maxRateMbps, rampTimeSec)
+
+RampDownTrafficPattern::RampDownTrafficPattern(const double targetRateMbps, const double rampTimeSec)
+  : AbstractRampPattern(targetRateMbps, rampTimeSec)
 {}
 
-double RampDownTrafficPattern::calculateRate(double elapsedSec) const {
-    if (elapsedSec < rampTimeSec_) {
-        // ramp from maxRate → 0
-        return maxRateMbps_ * (1.0 - (elapsedSec / rampTimeSec_));
+double RampDownTrafficPattern::currentRateFactor(const double elapsedSec) const {
+    if (elapsedSec <= 0.0) {
+        return 1.0;
     }
-    // hold at 0
-    return 0.0;
+    if (elapsedSec >= rampTimeSec_) {
+        return 0.0;
+    }
+    return 1.0 - (elapsedSec / rampTimeSec_);
 }

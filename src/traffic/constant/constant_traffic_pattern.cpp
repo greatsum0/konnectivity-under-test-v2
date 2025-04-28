@@ -1,7 +1,7 @@
 #include "constant_traffic_pattern.h"
 #include <cmath>
 
-ConstantTrafficPattern::ConstantTrafficPattern(double rateMbps)
+ConstantTrafficPattern::ConstantTrafficPattern(const double rateMbps)
     : rateMbps_(rateMbps) {
 }
 

@@ -1,7 +1,5 @@
 #include "metric_collector_factory.h"
 
-#include <client_context.h>
-
 #include "bytes_transferred_collector.h"
 #include "imetric_collector.h"
 #include "self_cpu_collector.h"
@@ -9,9 +7,9 @@
 #include "total_cpu_collector.h"
 
 std::vector<std::unique_ptr<IMetricCollector> >
-MetricCollectorFactory::create(const ClientContext &context,
+MetricCollectorFactory::create(const MeasurementConfig &config,
                                std::vector<Metric> &store) {
-    const auto &cfg = context.measurement;
+    const auto &cfg = config;
     std::vector<std::unique_ptr<IMetricCollector> > v;
 
     for (auto const &name: cfg.metricNames) {
@@ -39,3 +37,4 @@ MetricCollectorFactory::create(const ClientContext &context,
 
     return v;
 }
+

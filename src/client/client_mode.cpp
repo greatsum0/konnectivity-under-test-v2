@@ -1,22 +1,17 @@
 #include "client_mode.h"
 #include <iostream>
-#include "traffic_scheduler.h"
 #include <utility>
+#include <memory>
+#include <vector>
+#include <asio.hpp>
+#include <port_traffic_monitor.h>
 #include <asio/io_context.hpp>
+#include <__filesystem/operations.h>
+#include "traffic_scheduler.h"
 #include "tcp_client.h"
 #include "udp_client.h"
 #include "traffic_pattern_factory.h"
-#include "metric_collector.h"
-#include "metric_scheduler.h"
 
-#include <asio.hpp>
-#include <iostream>
-#include <memory>
-#include <vector>
-#include <__filesystem/operations.h>
-
-#include "utils/csv_writer.h"
-#include "utils/pretty_printer.h"
 
 ClientMode::ClientMode(ClientContext context)
     : context(std::move(context)) {
@@ -33,39 +28,42 @@ void ClientMode::run() const {
         baseClient = std::make_unique<UdpClient>(io, context);
     } else {
         std::cerr << "[ERROR] Unsupported protocol: "
-                  << context.network.protocol << "\n";
+                << context.network.protocol << "\n";
         return;
     }
 
     // 2) connect
     baseClient->connect();
     std::cout << "[INFO] Connected to "
-              << context.network.serverAddress << ":"
-              << context.network.serverPort << "\n";
+            << context.network.serverAddress << ":"
+            << context.network.serverPort << "\n";
 
-    // 3) metrics
-    // MetricCollector collector(context.metricNames);
-    // MetricScheduler metricScheduler(io, collector, context.metricIntervalSec);
-    // metricScheduler.start();
+    PortTrafficMonitor monitor(
+        context.measurement.interface,
+        context.network.serverPort,
+        context.measurement.intervalSec
+    );
 
-    // // 4) wrap client to count bytes sent
-    // struct MeteredClient : INetworkClient {
-    //     INetworkClient &client;
-    //     MetricCollector &mc;
-    //     MeteredClient(INetworkClient &c, MetricCollector &m)
-    //       : client(c), mc(m) {}
-    //     void connect() override            { client.connect(); }
-    //     void send(const std::vector<uint8_t> &data) override {
-    //         client.send(data);
-    //         mc.addBytesTransferred(data.size());
-    //     }
-    //     void disconnect() override         { client.disconnect(); }
-    // } metered(*baseClient, collector);
+    monitor.start(
+      [&](const uint64_t bytesIn, const uint64_t bytesOut) {
+        // this is called once per interval_sec
+        const double interval = context.measurement.intervalSec;
+        const double mbpsIn  = (bytesIn  * 8.0) / (1e6 * interval);
+        const double mbpsOut = (bytesOut * 8.0) / (1e6 * interval);
 
-    // 5) constant-rate scheduler
+        // for now just log to stdout or store in-memory
+        std::cout << "[METRICS] In: "  << bytesIn  << " B ("
+                  << mbpsIn  << " Mbps), Out: "
+                  << bytesOut << " B (" << mbpsOut
+                  << " Mbps)\n";
+
+        // you could also push these into a vector for later:
+        // collectedMetrics.emplace_back(bytesIn, bytesOut, mbpsIn, mbpsOut);
+      }
+    );
+
 
     std::unique_ptr<ITrafficPattern> pattern = TrafficPatternFactory::create(context.traffic);
-
 
 
     TrafficScheduler trafficSched(
@@ -94,6 +92,7 @@ void ClientMode::run() const {
     io.run();
 
     // 8) teardown
+    monitor.stop();
     std::cout << "[INFO] Disconnecting client...\n";
     baseClient->disconnect();
 }

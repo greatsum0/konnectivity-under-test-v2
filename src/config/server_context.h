@@ -3,6 +3,12 @@
 #include <string>
 #include <vector>
 
+struct ServerMeasurementConfig {
+    double intervalSec;
+    std::string interface;
+    std::vector<std::string> metricNames;
+};
+
 struct ServerContext {
     std::string name;
     std::string outputPath;
@@ -10,6 +16,6 @@ struct ServerContext {
     std::string protocol; // "tcp" or "udp"
     int port;
 
-    double metricIntervalSec;
-    std::vector<std::string> metricNames;
+    ServerMeasurementConfig measurement;
+
 };

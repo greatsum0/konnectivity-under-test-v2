@@ -16,10 +16,14 @@ ServerContext YamlParser::parseServerContext(const std::string &path) {
     context.protocol = server["protocol"].as<std::string>();
     context.port = server["port"].as<int>();
 
-    // Metric collectionÏ
+    // Metric collection
     auto metrics = server["metric_collection"];
-    context.metricIntervalSec = metrics["interval_sec"].as<double>();
-    context.metricNames = metrics["metrics"].as<std::vector<std::string> >();
+    context.measurement.intervalSec = metrics["interval_sec"].as<double>();
+    context.measurement.interface = metrics["interface"].as<std::string>();
+    context.measurement.metricNames = metrics["metrics"].as<std::vector<std::string> >();
+    if (context.measurement.metricNames.empty()) {
+        context.measurement.metricNames = {"bytes_in", "bytes_out"};
+    }
 
     return context;
 }
@@ -80,8 +84,14 @@ ClientContext YamlParser::parseClientContext(const std::string &path) {
 
     // Metric collection
     auto metrics = scenario["metric_collection"];
-    context.metricIntervalSec = metrics["interval_sec"].as<double>();
-    context.metricNames = metrics["metrics"].as<std::vector<std::string> >();
+
+    context.measurement.intervalSec = metrics["interval_sec"].as<double>();
+    context.measurement.interface = metrics["interface"].as<std::string>();
+    context.measurement.metricNames = metrics["metrics"].as<std::vector<std::string> >();
+    if (context.measurement.metricNames.empty()) {
+        context.measurement.metricNames = {"bytes_in", "bytes_out"};
+    }
+
 
     return context;
 }

@@ -10,6 +10,12 @@ struct ClientNetworkConfig {
     int serverPort;
 };
 
+struct ClientMeasurementConfig {
+    double intervalSec;
+    std::string interface;
+    std::vector<std::string> metricNames;
+};
+
 struct ClientTrafficConfig {
     std::string type;           // e.g., "constant", "burst", ...
     double durationSec;
@@ -52,7 +58,5 @@ struct ClientContext {
 
     ClientNetworkConfig network;
     ClientTrafficConfig traffic;
-
-    double metricIntervalSec;
-    std::vector<std::string> metricNames;
+    ClientMeasurementConfig measurement;
 };

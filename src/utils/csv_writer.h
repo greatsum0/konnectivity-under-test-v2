@@ -1,17 +1,24 @@
+// utils/pivot_csv_writer.h
 #pragma once
 
 #include <string>
 #include <vector>
-#include "metric_collector.h"
+#include "metrics/metric_store.h"
 
-/// Dump MetricSample vector into a CSV file,
-/// using only the metrics listed in `metricNames`.
-class CsvWriter {
-public:
-    /// @param filename     Path to write CSV to (overwrites existing).
-    /// @param samples      Collected metric samples.
-    /// @param metricNames  List of metric names to include (e.g. "throughput", "total_cpu_util").
-    static void writeSamples(const std::string &filename,
-                             const std::vector<MetricSample> &samples,
-                             const std::vector<std::string> &metricNames);
-};
+namespace utils {
+    /// Writes a collection of Metric entries out as a pivot‐style CSV:
+    ///   Timestamp, key1, key2, key3, …
+    ///   2025-04-28 15:23:01, 125562500, 0,      1004.5, …
+    ///   2025-04-28 15:23:02, 124025000, 0,      992.2,  …
+    class PivotCSVWriter {
+    public:
+        /// @param path  path to write the .csv file
+        explicit PivotCSVWriter(std::string path);
+
+        /// Emit the full CSV, overwriting any existing file.
+        void write(const std::vector<Metric> &metrics) const;
+
+    private:
+        std::string _path;
+    };
+} // namespace utils

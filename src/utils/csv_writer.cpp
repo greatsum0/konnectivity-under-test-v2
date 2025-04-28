@@ -1,54 +1,57 @@
-// src/utils/CsvWriter.cpp
-#include "csv_writer.h"
+// utils/pivot_csv_writer.cpp
+#include "utils/csv_writer.h"
+
 #include <fstream>
+#include <map>
+#include <set>
+#include <sstream>
 #include <iomanip>
-#include <algorithm>
-#include <stdexcept>
+#include <chrono>
+#include <ctime>
 
-void CsvWriter::writeSamples(const std::string &filename,
-                             const std::vector<MetricSample> &samples,
-                             const std::vector<std::string> &metricNames) {
-    std::ofstream out(filename, std::ios::out | std::ios::trunc);
-    if (!out.is_open())
-        throw std::runtime_error("Failed to open CSV file: " + filename);
-
-    // --- HEADER ---
-    out << "timestamp_s";
-    for (auto const &m: metricNames) {
-        if (m == "bytes_transferred") {
-            out << ",bytes_transferred";
-        } else if (m == "throughput") {
-            out << ",throughput_Mbps";
-        } else if (m == "tool_cpu_util") {
-            out << ",tool_cpu_percent";
-        } else if (m == "total_cpu_util") {
-            out << ",total_cpu_percent";
-        } else {
-            out << "," << m;
-        }
+namespace utils {
+    PivotCSVWriter::PivotCSVWriter(std::string path)
+        : _path(std::move(path)) {
     }
-    out << "\n";
 
-    out << std::fixed << std::setprecision(6);
+    void PivotCSVWriter::write(const std::vector<Metric> &metrics) const {
+        // 1) Pivot data into a map: timestamp → (key → value)
+        std::map<std::string, std::map<std::string, std::string> > table;
+        std::set<std::string> keys;
 
-    // --- ROWS ---
-    for (auto const &s: samples) {
-        out << s.timestampSec;
-        for (auto const &m: metricNames) {
-            if (m == "bytes_transferred") {
-                out << "," << static_cast<uint64_t>(s.bytesTransferred);
-            } else if (m == "throughput") {
-                out << "," << s.throughputMbps;
-            } else if (m == "tool_cpu_util") {
-                out << "," << s.selfCpuUsage;
-            } else if (m == "total_cpu_util") {
-                out << "," << s.totalCpuUsage;
-            } else {
-                out << ","; // unknown metric: empty cell
+        for (auto const &m: metrics) {
+            // format timestamp as "YYYY-MM-DD HH:MM:SS"
+            auto tt = std::chrono::system_clock::to_time_t(m.timestamp);
+            std::tm tm = *std::localtime(&tt);
+            std::ostringstream tos;
+            tos << std::put_time(&tm, "%F %T");
+            std::string ts = tos.str();
+
+            keys.insert(m.key);
+            table[ts][m.key] = std::to_string(m.value);
+        }
+
+        // 2) Open file
+        std::ofstream ofs(_path);
+        if (!ofs) {
+            throw std::runtime_error("Unable to open CSV file: " + _path);
+        }
+
+        // 3) Write header
+        ofs << "Timestamp";
+        for (auto const &k: keys) {
+            ofs << ',' << k;
+        }
+        ofs << '\n';
+
+        // 4) Write each row
+        for (auto const &[ts, row]: table) {
+            ofs << ts;
+            for (auto const &k: keys) {
+                ofs << ','
+                        << (row.count(k) ? row.at(k) : "");
             }
+            ofs << '\n';
         }
-        out << "\n";
     }
-
-    out.close();
-}
+} // namespace utils

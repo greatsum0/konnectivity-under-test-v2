@@ -1,94 +1,71 @@
-#include "pretty_printer.h"
+#include "utils/pretty_printer.h"
 #include <iostream>
 #include <iomanip>
-#include <algorithm>
+#include <map>
+#include <set>
+#include <chrono>
+#include <ctime>
+#include <sstream>
 
-void PrettyPrinter::printTable(const std::vector<MetricSample> &samples,
-                               const std::vector<std::string> &metricNames,
-                               double intervalSec) {
-  struct Col {
-    std::string header;
-    size_t width;
-  };
-  std::vector<Col> cols;
+namespace utils {
+    void PrettyPrinter::printPivotTable(const std::vector<Metric> &metrics) {
+        // 1) Build sets of unique timestamps (as strings) & keys
+        std::map<std::string, std::map<std::string, std::string> > table;
+        std::set<std::string> keys;
 
-  // Always include timestamp
-  bool useMs = intervalSec < 1.0;
-  const char *timeLabel = useMs ? "t[ms]" : "t[s]";
-  cols.push_back({timeLabel, std::max<size_t>(5, std::string(timeLabel).size())});
+        for (auto const &m: metrics) {
+            // format timestamp
+            auto tt = std::chrono::system_clock::to_time_t(m.timestamp);
+            std::tm tm = *std::localtime(&tt);
+            std::ostringstream tos;
+            tos << std::put_time(&tm, "%F %T");
+            std::string ts = tos.str();
 
-  // map metricNames → headers
-  for (auto const &m: metricNames) {
-    if (m == "bytes_transferred") cols.push_back({"bytes", 6});
-    else if (m == "throughput") cols.push_back({"Mbps", 4});
-    else if (m == "tool_cpu_util") cols.push_back({"toolCPU%", 8});
-    else if (m == "total_cpu_util") cols.push_back({"totalCPU%", 9});
-    else cols.push_back({m, m.size()});
-  }
+            // record key and value
+            keys.insert(m.key);
+            table[ts][m.key] = std::to_string(m.value);
+        }
 
-  // compute column widths by scanning data
-  for (auto const &sample: samples) {
-    size_t col = 0;
-    // timestamp
-    {
-      std::ostringstream ss;
-      ss << std::fixed << std::setprecision(3) << sample.timestampSec;
-      cols[col].width = std::max(cols[col].width, ss.str().size());
+        // 2) Determine column widths
+        std::string col0 = "Timestamp";
+        std::map<std::string, size_t> colWidth;
+        colWidth[col0] = col0.size();
+        for (auto const &k: keys) {
+            colWidth[k] = k.size();
+        }
+        for (auto const &[ts,row]: table) {
+            colWidth[col0] = std::max(colWidth[col0], ts.size());
+            for (auto const &k: keys) {
+                auto it = row.find(k);
+                if (it != row.end()) {
+                    colWidth[k] = std::max(colWidth[k], it->second.size());
+                }
+            }
+        }
+
+        // 3) Print header
+        std::cout << std::left << std::setw(colWidth[col0]) << col0;
+        for (auto const &k: keys) {
+            std::cout << " | " << std::right << std::setw(colWidth[k]) << k;
+        }
+        std::cout << "\n";
+
+        // 4) Separator
+        std::cout << std::string(colWidth[col0], '-');
+        for (auto const &k: keys) {
+            std::cout << "-+-" << std::string(colWidth[k], '-');
+        }
+        std::cout << "\n";
+
+        // 5) Rows
+        for (auto const &[ts,row]: table) {
+            std::cout << std::left << std::setw(colWidth[col0]) << ts;
+            for (auto const &k: keys) {
+                auto it = row.find(k);
+                std::string cell = (it != row.end() ? it->second : "");
+                std::cout << " | " << std::right << std::setw(colWidth[k]) << cell;
+            }
+            std::cout << "\n";
+        }
     }
-    // other metrics
-    for (auto const &mn: metricNames) {
-      ++col;
-      std::ostringstream ss;
-      if (mn == "bytes_transferred") ss << static_cast<uint64_t>(sample.bytesTransferred);
-      else if (mn == "throughput") ss << std::fixed << std::setprecision(3) << sample.throughputMbps;
-      else if (mn == "tool_cpu_util") ss << std::fixed << std::setprecision(1) << sample.selfCpuUsage;
-      else if (mn == "total_cpu_util") ss << std::fixed << std::setprecision(1) << sample.totalCpuUsage;
-      else ss << "-";
-      cols[col].width = std::max(cols[col].width, ss.str().size());
-    }
-  }
-
-  // print header separator
-  auto printSep = [&]() {
-    std::cout << '+';
-    for (auto &c: cols) {
-      std::cout << std::string(c.width + 2, '-') << '+';
-    }
-    std::cout << "\n";
-  };
-
-  // top border
-  printSep();
-
-  // header row
-  std::cout << "| ";
-  for (auto &c: cols) {
-    std::cout << std::setw(c.width) << c.header << " | ";
-  }
-  std::cout << "\n";
-
-  // header/data separator
-  printSep();
-
-  // each data row
-  for (auto const &sample: samples) {
-    size_t col = 0;
-    std::cout << "| " << std::setw(cols[col].width)
-        << std::fixed << std::setprecision(3)
-        << sample.timestampSec << " | ";
-    for (auto const &mn: metricNames) {
-      ++col;
-      std::cout << std::setw(cols[col].width);
-      if (mn == "bytes_transferred") std::cout << static_cast<uint64_t>(sample.bytesTransferred);
-      else if (mn == "throughput") std::cout << std::fixed << std::setprecision(3) << sample.throughputMbps;
-      else if (mn == "tool_cpu_util") std::cout << std::fixed << std::setprecision(1) << sample.selfCpuUsage;
-      else if (mn == "total_cpu_util") std::cout << std::fixed << std::setprecision(1) << sample.totalCpuUsage;
-      else std::cout << "-";
-      std::cout << " | ";
-    }
-    std::cout << "\n";
-  }
-
-  // bottom border
-  printSep();
-}
+} // namespace utils

@@ -71,23 +71,23 @@ void ClientMode::run() const {
     );
     monitor.start(
         [&](const uint64_t bytesIn, const uint64_t bytesOut) {
-            auto now = std::chrono::system_clock::now();
+            const auto time_point = std::chrono::system_clock::now();
             const double interval = context.measurement.intervalSec;
             const double mbpsIn = (bytesIn * 8.0) / (1e6 * interval);
             const double mbpsOut = (bytesOut * 8.0) / (1e6 * interval);
-            cpuMetrics.push_back({now, "bytes_in", static_cast<double>(bytesIn)});
-            cpuMetrics.push_back({now, "bytes_out", static_cast<double>(bytesOut)});
-            cpuMetrics.push_back({now, "mbps_in", mbpsIn});
-            cpuMetrics.push_back({now, "mbps_out", mbpsOut});
+            cpuMetrics.push_back({time_point, "bytes_in", static_cast<double>(bytesIn)});
+            cpuMetrics.push_back({time_point, "bytes_out", static_cast<double>(bytesOut)});
+            cpuMetrics.push_back({time_point, "mbps_in", mbpsIn});
+            cpuMetrics.push_back({time_point, "mbps_out", mbpsOut});
         }
     );
 
     // 4) CPU usage monitor
     cpuMonitor.start(
-        [&](double totalCpuPct, double selfCpuPct) {
-            auto now = std::chrono::system_clock::now();
-            networkMetrics.push_back({now, "cpu_total_pct", totalCpuPct});
-            networkMetrics.push_back({now, "cpu_self_pct", selfCpuPct});
+        [&](const double totalCpuPct, const double selfCpuPct) {
+            const auto time_point = std::chrono::system_clock::now();
+            networkMetrics.push_back({time_point, "cpu_total_pct", totalCpuPct});
+            networkMetrics.push_back({time_point, "cpu_self_pct", selfCpuPct});
         }
     );
 
@@ -113,6 +113,16 @@ void ClientMode::run() const {
     );
     exitTimer.async_wait([&](const asio::error_code &) {
         std::cout << "[INFO] Duration elapsed, stopping I/O context\n";
+        // send an END message to the server only if the client and server are UDP
+        // Because TCP is a stream protocol, the client and server will know when the connection is closed
+        // But for UDP, we need to send a message to the server to indicate that the client is done
+        // Because server needs to know when to stop receiving data and to save the log file.
+        if (context.network.protocol == "udp") {
+            std::cout << "[INFO] Sending END message to server...\n";
+            std::string marker = "END";
+            std::vector<uint8_t> endMsg(marker.begin(), marker.end());
+            baseClient->send(endMsg);
+        }
         io.stop();
     });
 

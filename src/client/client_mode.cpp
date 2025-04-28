@@ -44,31 +44,35 @@ void ClientMode::run() const {
               << context.network.serverPort << "\n";
 
     // 3) metrics
-    MetricCollector collector(context.metricNames);
-    MetricScheduler metricScheduler(io, collector, context.metricIntervalSec);
-    metricScheduler.start();
+    // MetricCollector collector(context.metricNames);
+    // MetricScheduler metricScheduler(io, collector, context.metricIntervalSec);
+    // metricScheduler.start();
 
-    // 4) wrap client to count bytes sent
-    struct MeteredClient : INetworkClient {
-        INetworkClient &client;
-        MetricCollector &mc;
-        MeteredClient(INetworkClient &c, MetricCollector &m)
-          : client(c), mc(m) {}
-        void connect() override            { client.connect(); }
-        void send(const std::vector<uint8_t> &data) override {
-            client.send(data);
-            mc.addBytesTransferred(data.size());
-        }
-        void disconnect() override         { client.disconnect(); }
-    } metered(*baseClient, collector);
+    // // 4) wrap client to count bytes sent
+    // struct MeteredClient : INetworkClient {
+    //     INetworkClient &client;
+    //     MetricCollector &mc;
+    //     MeteredClient(INetworkClient &c, MetricCollector &m)
+    //       : client(c), mc(m) {}
+    //     void connect() override            { client.connect(); }
+    //     void send(const std::vector<uint8_t> &data) override {
+    //         client.send(data);
+    //         mc.addBytesTransferred(data.size());
+    //     }
+    //     void disconnect() override         { client.disconnect(); }
+    // } metered(*baseClient, collector);
 
     // 5) constant-rate scheduler
+
+    std::unique_ptr<ITrafficPattern> pattern = TrafficPatternFactory::create(context.traffic);
+
+
+
     TrafficScheduler trafficSched(
         io,
-        metered,
-        /* rateMbps: */    context.traffic.rateMbps,
-        /* packetSize: */  context.traffic.packetSize,
-        /* durationSec: */ context.traffic.durationSec
+        *baseClient,
+        context,
+        *pattern
     );
     trafficSched.start();
     std::cout << "[INFO] Traffic scheduler started\n";

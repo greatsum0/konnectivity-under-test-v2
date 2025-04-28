@@ -9,8 +9,8 @@ class ConstantTrafficPattern : public ITrafficPattern {
 public:
     explicit ConstantTrafficPattern(double rateMbps);
 
-    std::vector<uint8_t> generatePayload(double intervalSec) override;
-    std::chrono::microseconds generateDelay(double intervalSec) override;
+    [[nodiscard]] std::size_t computeMaxPackets(double durationSec, size_t packetSize) const override;
+    std::chrono::microseconds generateDelay(size_t packetSize) override;
 private:
     double rateMbps_;
 };

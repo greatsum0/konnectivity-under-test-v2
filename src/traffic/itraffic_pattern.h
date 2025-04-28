@@ -8,6 +8,6 @@ class ITrafficPattern {
 public:
     virtual ~ITrafficPattern() = default;
 
-    virtual std::vector<uint8_t> generatePayload(double intervalSec) = 0;
-    virtual std::chrono::microseconds generateDelay(double intervalSec) = 0;
+    virtual std::chrono::microseconds generateDelay(size_t packetSize) = 0;
+    [[nodiscard]] virtual std::size_t computeMaxPackets(double durationSec, size_t packetSize) const = 0;
 };

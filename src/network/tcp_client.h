@@ -5,7 +5,7 @@
 #include <asio.hpp>
 #pragma once
 
-class TcpClient : public INetworkClient {
+class TcpClient final : public INetworkClient {
 public:
     TcpClient(asio::io_context &io, const ClientContext &ctx);
 

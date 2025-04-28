@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-class UdpClient : public INetworkClient {
+class UdpClient final : public INetworkClient {
 public:
     UdpClient(asio::io_context& io, const ClientContext& ctx);
 

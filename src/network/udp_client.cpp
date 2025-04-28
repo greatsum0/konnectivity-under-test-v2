@@ -13,11 +13,11 @@ UdpClient::UdpClient(asio::io_context& io, const ClientContext& ctx)
 
 void UdpClient::connect() {
     try {
-        // DNS çözümleme ve ilk endpoint'i seçme
+        /// Opening the udp socket
         auto results = resolver_.resolve(asio::ip::udp::v4(), host_, portStr_);
         endpoint_ = *results.begin();
 
-        // "Connect" ederek default remote endpoint'i ayarlıyoruz
+        /// Connect the socket to the endpoint
         socket_.open(asio::ip::udp::v4());
         socket_.connect(endpoint_);
 

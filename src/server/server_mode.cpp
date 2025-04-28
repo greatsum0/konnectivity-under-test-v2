@@ -11,6 +11,7 @@
 #include <filesystem>
 
 #include "cpu_usage_monitor.h"
+#include "metric_collector_factory.h"
 #include "metric_store.h"
 #include "port_traffic_monitor.h"
 #include "udp_server.h"
@@ -61,55 +62,41 @@ void ServerMode::run() const {
                                + context.name + ".csv";
         // ----------------------------------------------------
 
-        // 3) start the network monitor
-        PortTrafficMonitor monitor(
+        // 3) set the network monitor
+        PortTrafficMonitor networkMonitor(
             context.measurement.interface,
             context.network.port,
             context.measurement.intervalSec
         );
-        monitor.start(
-            [&](const uint64_t bytesIn, const uint64_t bytesOut) {
-                const auto time_point = std::chrono::system_clock::now();
-                const double interval = context.measurement.intervalSec;
-                const double mbpsIn = (bytesIn * 8.0) / (1e6 * interval);
-                const double mbpsOut = (bytesOut * 8.0) / (1e6 * interval);
-                networkMetrics.push_back({
-                    time_point,
-                    "bytes_in", static_cast<double>(bytesIn)
-                });
-                networkMetrics.push_back({
-                    time_point,
-                    "bytes_out", static_cast<double>(bytesOut)
-                });
-                networkMetrics.push_back({
-                    time_point,
-                    "mbps_in", mbpsIn
-                });
-                networkMetrics.push_back({
-                    time_point,
-                    "mbps_out", mbpsOut
-                });
-            }
-        );
-
-        // 4) CPU usage monitor
         CPUUsageMonitor cpuMonitor(
             context.measurement.intervalSec
         );
-        cpuMonitor.start(
-            [&](const double totalCpuPct, const double selfCpuPct) {
-                const auto time_point = std::chrono::system_clock::now();
-                cpuMetrics.push_back({time_point, "cpu_total_pct", totalCpuPct});
-                cpuMetrics.push_back({time_point, "cpu_self_pct", selfCpuPct});
+        // ----------------------------------------------------
+        // 2) network callback
+        auto network_collectors = MetricCollectorFactory::create(context.measurement, networkMetrics);
+        networkMonitor.start(
+          [&](auto in, auto out){
+            for (auto& c : network_collectors)
+                c->onNetworkSample(std::chrono::system_clock::now(), in, out);
             }
-        );
+          );
+
+        // 3) CPU callback
+        auto cpu_collectors = MetricCollectorFactory::create(context.measurement, cpuMetrics);
+        cpuMonitor.start(
+          [&](auto total, auto self){
+            for (auto& c : cpu_collectors)
+                c->onCpuSample(std::chrono::system_clock::now(), total, self);
+            }
+          );
+
         // ----------------------------------------------------
 
         // 5) run until client disconnects (io.stop is called internally)
         io.run();
 
         // 6) then stop the monitors
-        monitor.stop();
+        networkMonitor.stop();
         cpuMonitor.stop();
 
         std::vector<Metric> allMetrics;

@@ -73,7 +73,7 @@ void ClientMode::run() const {
 
 
     // 2) network callback
-    auto network_collectors = MetricCollectorFactory::create(context, networkMetrics);
+    auto network_collectors = MetricCollectorFactory::create(context.measurement, networkMetrics);
     networkMonitor.start(
         [&](auto in, auto out) {
             for (auto &c: network_collectors)
@@ -82,7 +82,7 @@ void ClientMode::run() const {
     );
 
     // 3) CPU callback
-    auto cpu_collectors = MetricCollectorFactory::create(context, cpuMetrics);
+    auto cpu_collectors = MetricCollectorFactory::create(context.measurement, cpuMetrics);
     cpuMonitor.start(
         [&](auto total, auto self) {
             for (auto &c: cpu_collectors)

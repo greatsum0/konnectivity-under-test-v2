@@ -1,32 +1,38 @@
 #pragma once
 
-#include "itraffic_pattern.h"
-#include <vector>
+#include "abstract_burst_pattern.h"
 #include <random>
+#include <cstddef>
+#include <chrono>
+#include <vector>
+#include <cstdint>
 
-class RandomBurstTrafficPattern : public ITrafficPattern {
+/// Random bursts on top of a base rate.
+class RandomBurstTrafficPattern final : public AbstractBurstPattern {
 public:
-    RandomBurstTrafficPattern(unsigned seed,
-                              double rateMbps,
-                              double burstSizeMinMb,
-                              double burstSizeMaxMb,
-                              double burstDurationMinMs,
-                              double burstDurationMaxMs,
-                              double burstIntervalMinMs,
-                              double burstIntervalMaxMs);
+    RandomBurstTrafficPattern(double meanRateMbps,
+                              double minBurstSizeMB,
+                              double maxBurstSizeMB,
+                              double minBurstDurationMs,
+                              double maxBurstDurationMs,
+                              double minBurstIntervalMs,
+                              double maxBurstIntervalMs,
+                              unsigned int seed);
 
-    std::vector<uint8_t> generatePayload(double intervalSec) override;
+    std::size_t computeMaxPackets(double durationSec, std::size_t packetSize) const override;
+
+    std::chrono::microseconds generateDelay(size_t packetSize, double intervalSec) override;
 
 private:
-    double rateMbps_;
-
-    std::mt19937 rng_;
-    std::uniform_real_distribution<> sizeDist_; // bytes
-    std::uniform_real_distribution<> durDist_; // seconds
-    std::uniform_real_distribution<> intDist_; // seconds
-
-    double elapsed_;
-    double nextBurstTime_;
-    double currentBurstDuration_;
-    size_t remainingBurstBytes_;
+    double meanRateMbps_;
+    double minBurstSizeMB_, maxBurstSizeMB_;
+    double minBurstDurationMs_, maxBurstDurationMs_;
+    double minBurstIntervalMs_, maxBurstIntervalMs_;
+    mutable std::mt19937 rng_;
+    mutable std::uniform_real_distribution<double> sizeDist_;
+    mutable std::uniform_real_distribution<double> durDist_;
+    mutable std::uniform_real_distribution<double> intDist_;
+    mutable double nextBurstStartSec_{0.0};
+    mutable double currentBurstEndSec_{0.0};
+    mutable double currentBurstRateMbps_{0.0};
 };

@@ -1,12 +1,19 @@
 #pragma once
 
-#include "abstract_burst_pattern.h"
+#include "burst_traffic_pattern.h"
+#include <cstddef>
 
-class PureBurstTrafficPattern : public AbstractBurstPattern {
+/// Zero mean rate, only periodic bursts.
+class PureBurstTrafficPattern final : public BurstTrafficPattern {
 public:
-    PureBurstTrafficPattern(double burstSizeMb,
-                            double burstDurationSec,
-                            double burstIntervalSec);
-
-    std::vector<uint8_t> generatePayload(double intervalSec) override;
+    PureBurstTrafficPattern(const double burstSizeMB,
+                            const double burstDurationSec,
+                            const double burstIntervalSec)
+        : BurstTrafficPattern(
+            /*meanRateMbps=*/0.0,
+                             burstSizeMB,
+                             burstDurationSec,
+                             burstIntervalSec
+        ) {
+    }
 };

@@ -1,15 +1,24 @@
 #pragma once
-#include "abstract_burst_pattern.h"
 
+#include "abstract_burst_pattern.h"
+#include <cstddef>
+#include <chrono>
+
+/// Steady mean rate plus periodic fixed-size bursts.
 class BurstTrafficPattern : public AbstractBurstPattern {
 public:
-    BurstTrafficPattern(double rateMbps,
-                        double burstSizeMb,
+    BurstTrafficPattern(double meanRateMbps,
+                        double burstSizeMB,
                         double burstDurationSec,
                         double burstIntervalSec);
 
-    std::vector<uint8_t> generatePayload(double intervalSec) override;
+    std::chrono::microseconds generateDelay(size_t packetSize, double intervalSec) override;
+
+    [[nodiscard]] std::size_t computeMaxPackets(double durationSec, size_t packetSize) const override;
 
 private:
-    double rateMbps_;
+    double meanRateMbps_;
+    double burstSizeMB_;
+    double burstDurationSec_;
+    double burstIntervalSec_;
 };

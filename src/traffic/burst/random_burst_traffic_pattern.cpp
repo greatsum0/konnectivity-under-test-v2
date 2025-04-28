@@ -1,61 +1,63 @@
+// random_burst_traffic_pattern.cpp
 #include "random_burst_traffic_pattern.h"
 #include <cmath>
-#include <iostream>
 
-RandomBurstTrafficPattern::RandomBurstTrafficPattern(const unsigned seed,
-                                                     const double rateMbps,
-                                                     const double burstSizeMinMb,
-                                                     const double burstSizeMaxMb,
-                                                     const double burstDurationMinMs,
-                                                     const double burstDurationMaxMs,
-                                                     const double burstIntervalMinMs,
-                                                     const double burstIntervalMaxMs)
-    : rateMbps_(rateMbps),
+RandomBurstTrafficPattern::RandomBurstTrafficPattern(
+    const double meanRateMbps,
+    const double minBurstSizeMB,
+    const double maxBurstSizeMB,
+    const double minBurstDurationMs,
+    const double maxBurstDurationMs,
+    const double minBurstIntervalMs,
+    const double maxBurstIntervalMs,
+    const unsigned int seed)
+    : AbstractBurstPattern(),
+      meanRateMbps_(meanRateMbps),
+      minBurstSizeMB_(minBurstSizeMB),
+      maxBurstSizeMB_(maxBurstSizeMB),
+      minBurstDurationMs_(minBurstDurationMs),
+      maxBurstDurationMs_(maxBurstDurationMs),
+      minBurstIntervalMs_(minBurstIntervalMs),
+      maxBurstIntervalMs_(maxBurstIntervalMs),
       rng_(seed),
-      sizeDist_(burstSizeMinMb * 1e6, burstSizeMaxMb * 1e6),
-      durDist_(burstDurationMinMs / 1000.0, burstDurationMaxMs / 1000.0),
-      intDist_(burstIntervalMinMs / 1000.0, burstIntervalMaxMs / 1000.0),
-      elapsed_(0),
-      nextBurstTime_(intDist_(rng_)),
-      currentBurstDuration_(0),
-      remainingBurstBytes_(0) {
+      sizeDist_(minBurstSizeMB_, maxBurstSizeMB_),
+      durDist_(minBurstDurationMs_, maxBurstDurationMs_),
+      intDist_(minBurstIntervalMs_, maxBurstIntervalMs_) {
 }
 
-std::vector<uint8_t> RandomBurstTrafficPattern::generatePayload(const double intervalSec) {
-    elapsed_ += intervalSec;
-    std::vector<uint8_t> payload;
+std::size_t RandomBurstTrafficPattern::computeMaxPackets(const double durationSec, const std::size_t packetSize) const {
+    // approximate using mean rate
+    const double totalBits = meanRateMbps_ * 1e6 * durationSec;
+    const double bitsPerPkt = static_cast<double>(packetSize) * 8.0;
+    return static_cast<std::size_t>(
+        std::ceil(totalBits / bitsPerPkt)
+    );
+}
 
-    //constant traffic
-    const double baseBits = rateMbps_ * 1e6 * intervalSec;
-    const auto baseBytes = static_cast<size_t>(baseBits / 8.0);
-    payload.insert(payload.end(), baseBytes, 0xAA);
+std::chrono::microseconds RandomBurstTrafficPattern::generateDelay(const size_t packetSize, const double intervalSec) {
+    const double now = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - startTime_).count();
 
-    // if burst is active, add burst payload
-    if (elapsed_ >= nextBurstTime_ && currentBurstDuration_ <= 0) {
-        currentBurstDuration_ = durDist_(rng_);
-        remainingBurstBytes_ = static_cast<size_t>(std::round(sizeDist_(rng_)));
+    // start a new burst if needed
+    if (now >= nextBurstStartSec_) {
+        const double burstSizeMB = sizeDist_(rng_);
+        double burstDurSec = durDist_(rng_) / 1e3;
+        double nextIntSec = intDist_(rng_) / 1e3;
 
-        if (currentBurstDuration_ < 0.001)
-            currentBurstDuration_ = 0.001; // dont fall below 1ms
-
-        nextBurstTime_ = elapsed_ + intDist_(rng_);
+        currentBurstRateMbps_ = (burstSizeMB * 8.0) / burstDurSec;
+        currentBurstEndSec_ = now + burstDurSec;
+        nextBurstStartSec_ = now + nextIntSec;
     }
 
-    // if burst is active, add burst payload
-    if (currentBurstDuration_ > 0 && remainingBurstBytes_ > 0) {
-        auto burstBytes = static_cast<size_t>(
-            remainingBurstBytes_ * (intervalSec / currentBurstDuration_));
+    bool inBurst = (now < currentBurstEndSec_);
+    double rate = meanRateMbps_ + (inBurst ? currentBurstRateMbps_ : 0.0);
+    rate = std::max(rate, 1e-9);
 
-        burstBytes = std::min(burstBytes, remainingBurstBytes_);
-        payload.insert(payload.end(), burstBytes, 0xDD);
+    double bits = rate * 1e6 * intervalSec;
+    double bytes = bits / 8.0;
+    double packets = std::round(bytes / static_cast<double>(packetSize));
+    if (packets < 1.0) packets = 1.0;
 
-        remainingBurstBytes_ -= burstBytes;
-        currentBurstDuration_ -= intervalSec;
-
-        if (remainingBurstBytes_ == 0 || currentBurstDuration_ <= 0) {
-            currentBurstDuration_ = 0;
-        }
-    }
-
-    return payload;
+    double dtSec = intervalSec / packets;
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::duration<double>(dtSec));
 }

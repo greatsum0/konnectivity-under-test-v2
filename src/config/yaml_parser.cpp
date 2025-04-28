@@ -13,8 +13,11 @@ ServerContext YamlParser::parseServerContext(const std::string &path) {
     // General information
     context.name = server["name"].as<std::string>();
     context.outputPath = server["output_path"].as<std::string>();
-    context.protocol = server["protocol"].as<std::string>();
-    context.port = server["port"].as<int>();
+
+    // network setup
+    auto net = server["network"];
+    context.network.protocol = net["protocol"].as<std::string>();
+    context.network.port = net["port"].as<int>();
 
     // Metric collection
     auto metrics = server["metric_collection"];

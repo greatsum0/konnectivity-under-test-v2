@@ -9,13 +9,17 @@ struct ServerMeasurementConfig {
     std::vector<std::string> metricNames;
 };
 
+struct ServerNetworkConfig {
+    std::string protocol; // "tcp" or "udp"
+    int port;
+};
+
+
 struct ServerContext {
     std::string name;
     std::string outputPath;
 
-    std::string protocol; // "tcp" or "udp"
-    int port;
-
     ServerMeasurementConfig measurement;
+    ServerNetworkConfig network;
 
 };

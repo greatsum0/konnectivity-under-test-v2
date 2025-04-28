@@ -5,20 +5,41 @@
 #include <vector>
 #include <asio.hpp>
 #include <port_traffic_monitor.h>
+#include <cpu_usage_monitor.h>            // <— add CPU monitor
 #include <asio/io_context.hpp>
 #include <__filesystem/operations.h>
+
+#include "metric_store.h"
 #include "traffic_scheduler.h"
 #include "tcp_client.h"
 #include "udp_client.h"
 #include "traffic_pattern_factory.h"
-
+#include "utils/pretty_printer.h"
+#include "utils/csv_writer.h"
 
 ClientMode::ClientMode(ClientContext context)
     : context(std::move(context)) {
 }
 
 void ClientMode::run() const {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    std::tm tm = *std::localtime(&now_c);
+
+    std::ostringstream ts;
+    ts << std::put_time(&tm, "%Y%m%d_%H%M%S");
+    std::string timestamp = ts.str();
+
+    // build the filename store the test start time
+    std::string filename = context.outputPath + "/"
+                           + timestamp + "_"
+                           + context.name + ".csv";
+
     asio::io_context io;
+
+    /// two different metric stores because of race conditions, to save time on lock mechanism. merge at the end.
+    std::vector<Metric> cpuMetrics;
+    std::vector<Metric> networkMetrics;
 
     // 1) pick TCP or UDP
     std::unique_ptr<INetworkClient> baseClient;
@@ -38,28 +59,36 @@ void ClientMode::run() const {
             << context.network.serverAddress << ":"
             << context.network.serverPort << "\n";
 
+    // 3) port‐level traffic monitor
     PortTrafficMonitor monitor(
         context.measurement.interface,
         context.network.serverPort,
         context.measurement.intervalSec
     );
-
+    /// cpu monitor
+    CPUUsageMonitor cpuMonitor(
+        context.measurement.intervalSec
+    );
     monitor.start(
-      [&](const uint64_t bytesIn, const uint64_t bytesOut) {
-        // this is called once per interval_sec
-        const double interval = context.measurement.intervalSec;
-        const double mbpsIn  = (bytesIn  * 8.0) / (1e6 * interval);
-        const double mbpsOut = (bytesOut * 8.0) / (1e6 * interval);
+        [&](const uint64_t bytesIn, const uint64_t bytesOut) {
+            auto now = std::chrono::system_clock::now();
+            const double interval = context.measurement.intervalSec;
+            const double mbpsIn = (bytesIn * 8.0) / (1e6 * interval);
+            const double mbpsOut = (bytesOut * 8.0) / (1e6 * interval);
+            cpuMetrics.push_back({now, "bytes_in", static_cast<double>(bytesIn)});
+            cpuMetrics.push_back({now, "bytes_out", static_cast<double>(bytesOut)});
+            cpuMetrics.push_back({now, "mbps_in", mbpsIn});
+            cpuMetrics.push_back({now, "mbps_out", mbpsOut});
+        }
+    );
 
-        // for now just log to stdout or store in-memory
-        std::cout << "[METRICS] In: "  << bytesIn  << " B ("
-                  << mbpsIn  << " Mbps), Out: "
-                  << bytesOut << " B (" << mbpsOut
-                  << " Mbps)\n";
-
-        // you could also push these into a vector for later:
-        // collectedMetrics.emplace_back(bytesIn, bytesOut, mbpsIn, mbpsOut);
-      }
+    // 4) CPU usage monitor
+    cpuMonitor.start(
+        [&](double totalCpuPct, double selfCpuPct) {
+            auto now = std::chrono::system_clock::now();
+            networkMetrics.push_back({now, "cpu_total_pct", totalCpuPct});
+            networkMetrics.push_back({now, "cpu_self_pct", selfCpuPct});
+        }
     );
 
 
@@ -91,10 +120,38 @@ void ClientMode::run() const {
     std::cout << "[INFO] Running I/O context...\n";
     io.run();
 
-    // 8) teardown
+    // 8) teardown monitors & client
     monitor.stop();
+    cpuMonitor.stop();
     std::cout << "[INFO] Disconnecting client...\n";
+    std::vector<Metric> allMetrics;
+
+    /// append all metrics to a single vector
+    /// append network metrics first
+    allMetrics.reserve(networkMetrics.size() + cpuMetrics.size());
+    allMetrics.insert(allMetrics.end(),
+                      std::make_move_iterator(networkMetrics.begin()),
+                      std::make_move_iterator(networkMetrics.end()));
+
+    /// clear network metrics to avoid bloating the memory
+    networkMetrics.clear();
+
+    /// append cpu metrics
+    allMetrics.insert(allMetrics.end(),
+                      std::make_move_iterator(cpuMetrics.begin()),
+                      std::make_move_iterator(cpuMetrics.end()));
+    /// clear cpu metrics to avoid bloating the memory
+    cpuMetrics.clear();
+
+    utils::PrettyPrinter::printPivotTable(allMetrics);
+
+    /// append the filename
+    utils::PivotCSVWriter writer(filename);
+
+    /// create directories if they do not exist
+    std::filesystem::create_directories(context.outputPath);
+
+    writer.write(allMetrics);
+
     baseClient->disconnect();
 }
-
-

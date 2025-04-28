@@ -75,20 +75,20 @@ void ClientMode::run() const {
     // 2) network callback
     auto network_collectors = MetricCollectorFactory::create(context, networkMetrics);
     networkMonitor.start(
-      [&](auto in, auto out){
-        for (auto& c : network_collectors)
-            c->onNetworkSample(std::chrono::system_clock::now(), in, out);
+        [&](auto in, auto out) {
+            for (auto &c: network_collectors)
+                c->onNetworkSample(std::chrono::system_clock::now(), in, out);
         }
-      );
+    );
 
     // 3) CPU callback
     auto cpu_collectors = MetricCollectorFactory::create(context, cpuMetrics);
     cpuMonitor.start(
-      [&](auto total, auto self){
-        for (auto& c : cpu_collectors)
-            c->onCpuSample(std::chrono::system_clock::now(), total, self);
+        [&](auto total, auto self) {
+            for (auto &c: cpu_collectors)
+                c->onCpuSample(std::chrono::system_clock::now(), total, self);
         }
-      );
+    );
 
 
     std::unique_ptr<ITrafficPattern> pattern = TrafficPatternFactory::create(context.traffic);

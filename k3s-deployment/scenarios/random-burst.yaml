@@ -1,6 +1,6 @@
 scenario:
   name: "test_scenario_random_burst"
-  output_path: "/measurements/data"
+  output_path: "/measurements/client"
   network:
     protocol: "tcp"
     server_address: "kut-server"

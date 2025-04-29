@@ -1,6 +1,7 @@
 #pragma once
 
 #include "abstract_ramp_pattern.h"
+#include <chrono>
 
 /// Linearly ramps *up* from 0 → targetRateMbps over rampTimeSec
 class RampUpTrafficPattern final : public AbstractRampPattern {

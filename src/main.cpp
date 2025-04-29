@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <memory>
 #include "client_mode.h"
 #include "server_mode.h"
 #include "yaml_parser.h"

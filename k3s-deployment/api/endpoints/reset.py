@@ -65,7 +65,7 @@ def perform_reset():
                 logger.warning(f"Namespace '{namespace}' not found, skipping deletion.")
             else:
                 logger.error(f"Error deleting namespace '{namespace}': {e}")
-                return False
+                return jsonify({"error": f"Error deleting namespace '{namespace}': {e}"}), 500
 
         try:
             v1.read_namespace(name=namespace)
@@ -78,13 +78,13 @@ def perform_reset():
                         break
                     else:
                         logger.error(f"Unexpected error while checking namespace status: {e}")
-                        return False
+                        return jsonify({"error": f"Unexpected error while checking namespace status: {e}"}), 500
         except ApiException as e:
             if e.status == 404:
                 logger.info(f"Namespace '{namespace}' was already deleted.")
             else:
                 logger.error(f"Error while checking namespace: {e}")
-                return False
+                return jsonify({"error": f"Error while checking namespace: {e}"}), 500
 
         # Clean up Released PVs
         pvs = v1.list_persistent_volume().items
@@ -94,8 +94,8 @@ def perform_reset():
                 v1.delete_persistent_volume(name=pv.metadata.name)
 
         logger.info("Reset complete.")
-        return True
+        return jsonify({"status": "Reset complete."}), 200
 
     except ApiException as e:
         logger.error(f"Kubernetes API error: {e}")
-        return False
+        return jsonify({"error": f"Kubernetes API error: {e}"}), 500

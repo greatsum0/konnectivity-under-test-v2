@@ -7,7 +7,7 @@ data:
   server_config.yaml: |
     server:
       name: "test_server"
-      output_path: "measurements/server"
+      output_path: "/measurements/server"
       network:
         protocol: "tcp"
         port: 23456

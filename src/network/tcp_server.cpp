@@ -26,8 +26,9 @@ void TcpServer::handleAccept(std::shared_ptr<asio::ip::tcp::socket> sock,
         read(sock);
     } else {
         std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
+        ioContext_.stop();
     }
-    startAccept();
+    //startAccept();
 }
 
 void TcpServer::read(std::shared_ptr<asio::ip::tcp::socket> sock) {

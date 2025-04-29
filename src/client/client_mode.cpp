@@ -5,7 +5,7 @@
 #include <vector>
 #include <asio.hpp>
 #include <port_traffic_monitor.h>
-#include <cpu_usage_monitor.h>            // <— add CPU monitor
+#include <cpu_usage_monitor.h>
 #include <asio/io_context.hpp>
 #include <filesystem>
 
@@ -154,11 +154,11 @@ void ClientMode::run() const {
 
     utils::PrettyPrinter::printPivotTable(allMetrics);
 
-    /// append the filename
-    utils::PivotCSVWriter writer(filename);
-
     /// create directories if they do not exist
     std::filesystem::create_directories(context.outputPath);
+
+    /// append the filename
+    utils::PivotCSVWriter writer(filename);
 
     writer.write(allMetrics);
 

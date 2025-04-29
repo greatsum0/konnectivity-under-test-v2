@@ -21,7 +21,7 @@ scenario:
       packet_size: 12500 # Packet size (bytes)
   metric_collection:
     interval_sec: 1.0  # Metric collection resolution (seconds)
-    interface: "lo0"  # Network interface to be used
+    interface: "eth0"  # Network interface to be used
     metrics:
       - total_cpu_util
       - tool_cpu_util

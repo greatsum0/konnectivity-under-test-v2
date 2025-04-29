@@ -7,14 +7,15 @@ data:
   server_config.yaml: |
     server:
       name: "test_server"
-      output_path: "/measurements/data/test_server.csv"
-      listeners:
-        - protocol: "tcp"
-          port: 23456
+      output_path: "output/test_server"
+      network:
+        protocol: "tcp"
+        port: 23456
       metric_collection:
-        interval_sec: 1
+        interval_sec: 1  # Metric collection resolution (seconds)
+        interface: "lo0"  # Network interface to be used
         metrics:
           - total_cpu_util
           - tool_cpu_util
-          - total_cpu_util_norm
           - throughput
+          - bytes_transferred

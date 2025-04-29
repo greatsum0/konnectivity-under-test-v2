@@ -64,7 +64,7 @@ def copy_results():
 
     try:
         subprocess.run(
-            ["kubectl", "cp", f"{namespace}/{client_pod}:/measurements/data", str(client_dir)],
+            ["kubectl", "cp", f"{namespace}/{client_pod}:/measurements/client", str(client_dir)],
             check=True
         )
         logger.info(f"Client data copied to {client_dir}")
@@ -74,7 +74,7 @@ def copy_results():
 
     try:
         subprocess.run(
-            ["kubectl", "cp", f"{namespace}/{server_pod}:/measurements/data", str(server_dir)],
+            ["kubectl", "cp", f"{namespace}/{server_pod}:/measurements/server", str(server_dir)],
             check=True
         )
         logger.info(f"Server data copied to {server_dir}")

@@ -1,32 +1,32 @@
 #include "udp_server.h"
 #include <iostream>
 
-UdpServer::UdpServer(ServerContext& context)
-    : context_(context),
-      socket_(context.ioContext, asio::ip::udp::endpoint(asio::ip::udp::v4(), context.getPortForProtocol("udp"))) {}
+UdpServer::UdpServer(asio::io_context &io, const ServerContext &context)
+    : INetworkServer(io, context),
+      socket_(io, asio::ip::udp::endpoint(asio::ip::udp::v4(), context.network.port)) {
+}
 
-void UdpServer::run() {
-    if (context_.metricCollector) {
-        std::cout << "Starting UDP metric collection..." << std::endl;
-        context_.metricCollector->start();
-        // scheduleMetricCollectionSummary(context_.ioContext, context_.metricCollector, 15.0, "UDP Server");
-    }
-
+void UdpServer::start() {
     receive();
 }
 
 void UdpServer::receive() {
     socket_.async_receive_from(
-        asio::buffer(recv_buffer_), remote_endpoint_,
-        [this](std::error_code ec, std::size_t bytes_recvd) {
-            if (!ec && bytes_recvd > 0) {
-                if (context_.metricCollector) {
-                    context_.metricCollector->addBytesTransferred(static_cast<int>(bytes_recvd));
+        asio::buffer(buffer_), remoteEndpoint_,
+        [this](const std::error_code ec, const std::size_t bytesReceived) {
+            if (!ec) {
+                // is this our end-of-traffic marker?
+                if (bytesReceived == 3 &&
+                    std::string(buffer_.data(), buffer_.data() + 3) == "END") {
+                    std::cout << "[SERVER] End-of-traffic marker received\n";
+                    ioContext_.stop();
+                } else {
+                    receive();
                 }
-            } else if (ec) {
-                std::cerr << "UDP Receive error: " << ec.message() << std::endl;
+            } else {
+                std::cout << "[SERVER] UDP receive error: "
+                        << ec.message() << "\n";
+                ioContext_.stop();
             }
-
-            receive(); // Continue receiving
         });
 }

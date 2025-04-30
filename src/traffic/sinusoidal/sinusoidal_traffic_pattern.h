@@ -1,34 +1,30 @@
 #pragma once
 
-#include "traffic_pattern.h"
-#include "client_context.h"
-#include <asio.hpp>
-#include <functional>
-#include <memory>
-#include <string>
+#include "itraffic_pattern.h"
+#include <chrono>
+#include <cstddef>
 
-class SinusoidalTrafficPattern : public ITrafficPattern, public std::enable_shared_from_this<SinusoidalTrafficPattern> {
+class SinusoidalTrafficPattern final : public ITrafficPattern {
 public:
-    using SendFunction = std::function<void(const std::string&)>;
+    /// @param meanRateMbps   the center rate (Mbps) around which you oscillate
+    /// @param amplitudeMbps  how far above/below mean you go (± Mbps)
+    /// @param frequencyHz    cycles per second (1 / period)
+    SinusoidalTrafficPattern(double meanRateMbps,
+                             double amplitudeMbps,
+                             double frequencyHz);
 
-    SinusoidalTrafficPattern(ClientContext& context, SendFunction sendFunc);
+    // Estimate total packets based on the *mean* rate
+    [[nodiscard]] std::size_t computeMaxPackets(double durationSec, size_t packetSize) const override;
 
-    void start() override;
+    // Compute per‐send delay based on instantaneous sine rate
+    std::chrono::microseconds generateDelay(size_t packetSize, double intervalSec) override;
 
 private:
-    void sendData();
+    // instantaneous rate (Mbps) at t seconds since start
+    [[nodiscard]] double currentRateMbps(double elapsedSec) const;
 
-    ClientContext& context_;
-    SendFunction sendFunc_;
-    asio::steady_timer timer_;
-
-    // Sinusoidal parameters
-    double amplitude_;     // Mbps
-    double frequency_;     // Hz
-    double base_rate_;     // center of the wave rate, Mbps
-
-    int interval_ms_;      // (ms) send interval
-    int elapsed_ms_;       // (ms) total elapsed time
-    std::chrono::steady_clock::time_point startTime_;
-    std::chrono::steady_clock::time_point nextPlannedTime_;
+    const double meanRateMbps_;
+    const double amplitudeMbps_;
+    const double frequencyHz_;
+    const std::chrono::steady_clock::time_point startTime_;
 };

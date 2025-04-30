@@ -33,7 +33,7 @@ spec:
 
           volumeMounts:
             - name: server-data
-              mountPath: /measurements/data
+              mountPath: /measurements/server
             - name: config-volume
               mountPath: /app/config
 

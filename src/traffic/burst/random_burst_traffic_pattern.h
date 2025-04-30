@@ -2,24 +2,37 @@
 
 #include "abstract_burst_pattern.h"
 #include <random>
+#include <cstddef>
+#include <chrono>
+#include <vector>
+#include <cstdint>
 
-class RandomBurstTrafficPattern : public AbstractBurstPattern {
+/// Random bursts on top of a base rate.
+class RandomBurstTrafficPattern final : public AbstractBurstPattern {
 public:
-    using SendFunction = std::function<void(const std::string &)>;
+    RandomBurstTrafficPattern(double meanRateMbps,
+                              double minBurstSizeMB,
+                              double maxBurstSizeMB,
+                              double minBurstDurationMs,
+                              double maxBurstDurationMs,
+                              double minBurstIntervalMs,
+                              double maxBurstIntervalMs,
+                              unsigned int seed);
 
-    RandomBurstTrafficPattern(ClientContext &context, SendFunction sendFunc);
+    std::size_t computeMaxPackets(double durationSec, std::size_t packetSize) const override;
 
-protected:
-    std::string generatePayload() override;
+    std::chrono::microseconds generateDelay(size_t packetSize, double intervalSec) override;
 
 private:
-    std::mt19937 rng_;  // random number generator
-    std::uniform_int_distribution<int> burst_size_dist_;
-    std::uniform_int_distribution<int> burst_duration_dist_;
-    std::uniform_int_distribution<int> burst_interval_dist_;
-
-    int current_burst_duration_ms_ = 0;
-    int current_burst_elapsed_ms_ = 0;
-    int time_to_next_burst_ms_ = 0;
-    bool in_burst_ = false;
+    double meanRateMbps_;
+    double minBurstSizeMB_, maxBurstSizeMB_;
+    double minBurstDurationMs_, maxBurstDurationMs_;
+    double minBurstIntervalMs_, maxBurstIntervalMs_;
+    mutable std::mt19937 rng_;
+    mutable std::uniform_real_distribution<double> sizeDist_;
+    mutable std::uniform_real_distribution<double> durDist_;
+    mutable std::uniform_real_distribution<double> intDist_;
+    mutable double nextBurstStartSec_{0.0};
+    mutable double currentBurstEndSec_{0.0};
+    mutable double currentBurstRateMbps_{0.0};
 };

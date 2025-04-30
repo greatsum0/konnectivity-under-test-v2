@@ -1,34 +1,45 @@
 #include "tcp_client.h"
-#include <utility>
 #include <iostream>
+#include <asio/connect.hpp>
+#include <asio/write.hpp>
 
-TcpClient::TcpClient(asio::io_context &io_context, std::string host, const int port)
-    : io_context_(io_context), socket_(io_context), resolver_(io_context),
-      host_(std::move(host)), port_(port), totalBytesSent_(0) {
+
+TcpClient::TcpClient(asio::io_context &io, const ClientContext &ctx)
+    : io_(io),
+      socket_(io_),
+      resolver_(io_),
+      host_(ctx.network.serverAddress),
+      portStr_(std::to_string(ctx.network.serverPort)) {
 }
 
 void TcpClient::connect() {
     try {
-        const auto endpoints = resolver_.resolve(host_, std::to_string(port_));
+        auto endpoints = resolver_.resolve(host_, portStr_);
+
         asio::connect(socket_, endpoints);
-        std::cout << "Connected to " << host_ << ":" << port_ << std::endl;
+        std::cout << "[INFO] TCP connected to " << host_ << ":" << portStr_ << "\n";
     } catch (const std::system_error &e) {
-        std::cerr << "[ERROR] Failed to connect to " << host_ << ":" << port_
-                << " - " << e.what() << std::endl;
+        std::cerr << "[ERROR] connect() failed: " << e.what() << "\n";
         throw;
     }
 }
 
-void TcpClient::sendMessage(const std::string &message) {
-    if (!socket_.is_open()) {
-        throw std::runtime_error("Socket is not open");
+void TcpClient::send(const std::vector<uint8_t> &data) {
+    try {
+        asio::write(socket_, asio::buffer(data));
+    } catch (const std::system_error &e) {
+        std::cerr << "[ERROR] send() failed: " << e.what() << "\n";
+        throw;
     }
-    asio::write(socket_, asio::buffer(message));
-    totalBytesSent_ += message.size(); // add the sent bytes to the counter
 }
 
-void TcpClient::printSummary() const {
-    std::cout << "[SUMMARY] Total bytes sent in session: "
-            << totalBytesSent_ << " bytes (≈ "
-            << totalBytesSent_ / 1'000'000.0 << " MB)\n";
+void TcpClient::disconnect() {
+    std::error_code ec;
+    socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+    socket_.close(ec);
+    if (ec) {
+        std::cerr << "[WARN] disconnect() error: " << ec.message() << "\n";
+    } else {
+        std::cout << "[INFO] TCP disconnected cleanly\n";
+    }
 }

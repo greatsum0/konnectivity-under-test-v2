@@ -1,27 +1,23 @@
 #pragma once
 
+#include "inetwork_server.h"
 #include <asio.hpp>
 #include <memory>
-#include <array>
-#include "iserver.h"
-#include "server_context.h"
 
-#define BUFFER_SIZE 4096
-
-class TcpServer final : public IServer {
+class TcpServer final : public INetworkServer {
 public:
-    explicit TcpServer(ServerContext &context);
+    TcpServer(asio::io_context &io, const ServerContext &context);
 
-    void run() override;
+    void start() override;
 
 private:
-    void acceptConnection();
+    void startAccept();
 
-    void readData();
+    void handleAccept(std::shared_ptr<asio::ip::tcp::socket> sock,
+                      const asio::error_code &ec);
 
-    ServerContext &context_;
+    void read(std::shared_ptr<asio::ip::tcp::socket> sock);
+
     asio::ip::tcp::acceptor acceptor_;
-    asio::ip::tcp::socket socket_;
-    std::array<char, BUFFER_SIZE> buffer_{};
-    int totalBytesReceived_;
+    std::array<char, 8192> buffer_{};
 };

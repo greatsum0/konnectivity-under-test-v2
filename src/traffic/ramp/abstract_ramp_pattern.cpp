@@ -1,55 +1,45 @@
 #include "abstract_ramp_pattern.h"
-#include "metric_utils.h"
-#include <iostream>
+#include <cmath>
 #include <chrono>
-
-AbstractRampPattern::AbstractRampPattern(ClientContext& context, SendFunction sendFunc)
-    : context_(context),
-      sendFunc_(std::move(sendFunc)),
-      timer_(context.ioContext),
-      interval_ms_(static_cast<int>(context.intervalSec() * 1000)),
-      elapsed_ms_(0)
-{
+AbstractRampPattern::AbstractRampPattern(const double targetRateMbps,
+                                         const double rampTimeSec)
+    : targetRateMbps(targetRateMbps),
+      rampTimeSec_(rampTimeSec),
+      startTime_(std::chrono::steady_clock::now()) {
 }
 
-void AbstractRampPattern::start() {
-    startTime_ = std::chrono::steady_clock::now();
-    nextPlannedTime_ = startTime_;
-    context_.metricCollector->start(startTime_);
+std::size_t
+AbstractRampPattern::computeMaxPackets(const double durationSec,
+                                       const std::size_t packetSize) const {
+    // Compute the *total area* under the normalized ramp curve up to durationSec:
+    // If durationSec >= rampTime, area = 0.5 * 1 * rampTime
+    // If durationSec <  rampTime, area = 0.5 * (duration/rampTime)^2 * rampTime
 
-    std::cout << "[INFO] Starting ramp traffic generation..." << std::endl;
-    scheduleNextSend();
+    const double time = std::min(durationSec, rampTimeSec_);
+    const double area = 0.5 * time * targetRateMbps;
+    const double avgRateMbps = area / time; // ∫(0→t) (x/rampTime) dx
+
+    // Total bits = avgRateMbps * 1e6 * durationSec
+    const double totalBits = avgRateMbps * 1e6 * durationSec;
+    const double bitsPerPacket = static_cast<double>(packetSize) * 8.0;
+    return static_cast<std::size_t>(std::ceil(totalBits / bitsPerPacket));
 }
 
-void AbstractRampPattern::scheduleNextSend() {
-    if (elapsed_ms_ >= context_.durationSec() * 1000) {
-        context_.metricCollector->stop();
-        std::cout << "[INFO] Ramp traffic generation finished." << std::endl;
-        return;
-    }
+std::chrono::microseconds
+AbstractRampPattern::generateDelay(const size_t packetSize, const double intervalSec) {
+    // elapsed time since start
+    const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime_).count();
+    // get the normalized factor (0→1) from elapsed
+    const double factor = currentRateFactor(elapsed); // to find the value in the y-axis
+    const double currRateMbps = targetRateMbps * factor; // point at y-axis
 
-    int current_rate_mbps = calculateRateMbps(elapsed_ms_);
-    double bytes_per_sec = (current_rate_mbps * 1'000'000) / 8.0;
-    int bytes_to_send = static_cast<int>((bytes_per_sec * interval_ms_) / 1000.0);
+    // Bits this interval
+    const double bits = currRateMbps * 1e6 * intervalSec;
+    // Packets needed (at least one)
+    const double bytes = bits / 8.0;
+    const double numPackets = std::max(1.0, std::round(bytes / packetSize));
 
-    std::string payload(bytes_to_send, 'r');
-    sendFunc_(payload);
-    context_.metricCollector->addBytesTransferred(bytes_to_send);
-
-    elapsed_ms_ += interval_ms_;
-    nextPlannedTime_ += std::chrono::milliseconds(interval_ms_);
-
-    auto now = std::chrono::steady_clock::now();
-    auto delay = std::chrono::duration_cast<std::chrono::milliseconds>(
-        nextPlannedTime_ > now ? (nextPlannedTime_ - now) : std::chrono::milliseconds(0)
-    );
-
-    timer_.expires_after(delay);
-    auto self = shared_from_this();
-    timer_.async_wait([self](const asio::error_code& ec) {
-        if (!ec) {
-            self->scheduleNextSend();
-        }
-    });
+    // spread sends evenly
+    const double dtSec = intervalSec / numPackets;
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::duration<double>(dtSec));
 }
-

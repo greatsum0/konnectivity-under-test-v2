@@ -1,60 +1,57 @@
 #include "sinusoidal_traffic_pattern.h"
-#include "metric_utils.h"
 #include <cmath>
-#include <chrono>
-#include <iostream>
 
-SinusoidalTrafficPattern::SinusoidalTrafficPattern(ClientContext &context, SendFunction sendFunc)
-    : context_(context),
-      sendFunc_(std::move(sendFunc)),
-      timer_(context.ioContext),
-      amplitude_(context.scenario.amplitude), // Mbps
-      frequency_(context.scenario.frequency), // Hz
-      base_rate_(context.rateMbps()), // center rate of the sinusoidal wave
-      interval_ms_(static_cast<int>(context.intervalSec() * 1000)),
-      elapsed_ms_(0) {
+SinusoidalTrafficPattern::SinusoidalTrafficPattern(const double meanRateMbps,
+                                                   const double amplitudeMbps,
+                                                   const double frequencyHz)
+    : meanRateMbps_(meanRateMbps),
+      amplitudeMbps_(amplitudeMbps),
+      frequencyHz_(frequencyHz),
+      startTime_(std::chrono::steady_clock::now()) {
 }
 
-void SinusoidalTrafficPattern::start() {
-    startTime_ = std::chrono::steady_clock::now();
-    nextPlannedTime_ = startTime_;
-    context_.metricCollector->start(startTime_);
-
-    std::cout << "[INFO] Starting sinusoidal traffic generation..." << std::endl;
-    sendData();
-}
-
-void SinusoidalTrafficPattern::sendData() {
-    if (elapsed_ms_ >= context_.durationSec() * 1000) {
-        context_.metricCollector->stop();
-        std::cout << "[INFO] Sinusoidal traffic generation finished." << std::endl;
-        return;
-    }
-
-    double time_sec = elapsed_ms_ / 1000.0;
-    double current_rate_mbps = base_rate_ + amplitude_ * std::sin(2 * M_PI * frequency_ * time_sec);
-    if (current_rate_mbps < 0) current_rate_mbps = 0.0;
-
-    double bytes_per_sec = (current_rate_mbps * 1'000'000) / 8.0;
-    int bytes_to_send = static_cast<int>((bytes_per_sec * interval_ms_) / 1000.0);
-
-    std::string payload(bytes_to_send, 'x');
-    sendFunc_(payload);
-    context_.metricCollector->addBytesTransferred(bytes_to_send);
-
-    elapsed_ms_ += interval_ms_;
-    nextPlannedTime_ += std::chrono::milliseconds(interval_ms_);
-
-    auto now = std::chrono::steady_clock::now();
-    auto delay = std::chrono::duration_cast<std::chrono::milliseconds>(
-        nextPlannedTime_ > now ? (nextPlannedTime_ - now) : std::chrono::milliseconds(0)
+std::size_t
+SinusoidalTrafficPattern::computeMaxPackets(const double durationSec,
+                                            const std::size_t packetSize) const {
+    // Over a full sine cycle the average of sin() is zero,
+    // so avg rate = meanRateMbps_.
+    const double totalBits = meanRateMbps_ * 1e6 * durationSec;
+    const double bitsPerPkt = static_cast<double>(packetSize) * 8.0;
+    return static_cast<std::size_t>(
+        std::ceil(totalBits / bitsPerPkt)
     );
+}
 
-    timer_.expires_after(delay);
-    auto self = shared_from_this();
-    timer_.async_wait([self](const asio::error_code &ec) {
-        if (!ec) {
-            self->sendData();
-        }
-    });
+std::chrono::microseconds
+SinusoidalTrafficPattern::generateDelay(size_t packetSize, const double intervalSec) {
+    using namespace std::chrono;
+
+    // 1) figure out elapsed time
+    const double elapsed = duration<double>(
+        steady_clock::now() - startTime_
+    ).count();
+
+    // 2) compute instantaneous rate
+    const double rate = currentRateMbps(elapsed);
+
+    // 3) bits to send in this interval
+    const double bits = rate * 1e6 * intervalSec;
+
+    // 4) how many fixed‐size packets?
+    const double bytes = bits / 8.0;
+    double packets = std::round(bytes / static_cast<double>(packetSize));
+    if (packets < 1.0) packets = 1.0;
+
+    // 5) evenly spaced over the interval
+    const double dtSec = intervalSec / packets;
+    return duration_cast<microseconds>(duration<double>(dtSec));
+}
+
+double
+SinusoidalTrafficPattern::currentRateMbps(const double elapsedSec) const {
+    // r(t) = mean + amplitude * sin(2π f t)
+    const double omega = 2.0 * M_PI * frequencyHz_;
+    const double val = meanRateMbps_ +
+                       amplitudeMbps_ * std::sin(omega * elapsedSec);
+    return std::max(0.0, val);
 }

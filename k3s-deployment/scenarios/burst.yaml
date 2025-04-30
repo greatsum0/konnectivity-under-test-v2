@@ -1,23 +1,25 @@
 scenario:
   name: "scenario_tcp_burst"
-  output_path: "/measurements/data/scenario_tcp_burst.csv"
+  output_path: "/measurements/client"
   network:
     protocol: "tcp"
     server_address: "kut-server"
     server_port: 23456
   traffic_pattern:
-    type: "burst"  # Bu alan, kullanılan trafik türünü belirler (constant, burst, random, vb.)
-    duration_sec: 11  # Trafik süresi
-    interval_sec: 1.0  # Trafik gönderme aralığı (saniye)
+    type: "burst"  # This section specifies the traffic pattern type (constant, burst, random, etc.)
+    duration_sec: 10  # Traffic duration (seconds)
+    interval_sec: 1.0  # Traffic sending interval (seconds)
     parameters:
-      rate_mbps: 500
-      burst_size_mb: 100   # Burst trafik için patlama boyutu (MB)
-      burst_duration_sec: 5 # Burst trafik için patlama süresi (saniye)
-      burst_interval_sec: 10 # Burst trafik için patlama aralığı (saniye)
+      rate_mbps: 100 # Target rate for base traffic (Mbps)
+      burst_size_mb: 20   # Burst size for burst traffic (MB)
+      burst_duration_sec: 2 # Duration of each burst (seconds)
+      burst_interval_sec: 4 # Interval between bursts (seconds)
+      packet_size: 12500 # Packet size (bytes)
   metric_collection:
-    interval_sec: 1.0  # Metrik toplama aralığı (saniye)
+    interval_sec: 1.0  # Metric collection resolution (seconds)
+    interface: "eth0"  # Network interface to be used
     metrics:
       - total_cpu_util
       - tool_cpu_util
-      - tool_cpu_util_norm
       - throughput
+      - bytes_transferred

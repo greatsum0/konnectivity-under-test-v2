@@ -1,21 +1,50 @@
 #include "udp_client.h"
+#include <asio/connect.hpp>
+#include <asio/write.hpp>
 #include <iostream>
-#include <string>
 
-UdpClient::UdpClient(asio::io_context &io_context, const std::string &host, const int port)
-    : io_context_(io_context),
-      socket_(io_context, asio::ip::udp::v4()),
-      endpoint_(asio::ip::make_address(host), port) {
-}
+UdpClient::UdpClient(asio::io_context& io, const ClientContext& ctx)
+    : io_(io),
+      socket_(io_),
+      resolver_(io_),
+      host_(ctx.network.serverAddress),
+      portStr_(std::to_string(ctx.network.serverPort))
+{}
 
-void UdpClient::sendMessage(const std::string &message) {
-    asio::error_code ec;
-    socket_.send_to(asio::buffer(message), endpoint_, 0, ec);
-    if (ec) {
-        std::cerr << "UDP send error: " << ec.message() << std::endl;
+void UdpClient::connect() {
+    try {
+        /// Opening the udp socket
+        auto results = resolver_.resolve(asio::ip::udp::v4(), host_, portStr_);
+        endpoint_ = *results.begin();
+
+        /// Connect the socket to the endpoint
+        socket_.open(asio::ip::udp::v4());
+        socket_.connect(endpoint_);
+
+        std::cout << "[INFO] UDP socket connected to "
+                  << host_ << ":" << portStr_ << "\n";
+    } catch (const std::system_error& e) {
+        std::cerr << "[ERROR] UDP connect() failed: " << e.what() << "\n";
+        throw;
     }
 }
 
-void UdpClient::printSummary() const {
-    std::cout << "[SUMMARY] UDP client does not support summary printing\n";
+void UdpClient::send(const std::vector<uint8_t>& data) {
+    try {
+        socket_.send(asio::buffer(data));
+    } catch (const std::system_error& e) {
+        std::cerr << "[ERROR] UDP send() failed: " << e.what() << "\n";
+        throw;
+    }
+}
+
+void UdpClient::disconnect() {
+    std::error_code ec;
+    socket_.shutdown(asio::ip::udp::socket::shutdown_both, ec);
+    socket_.close(ec);
+    if (ec) {
+        std::cerr << "[WARN] UDP disconnect error: " << ec.message() << "\n";
+    } else {
+        std::cout << "[INFO] UDP socket closed cleanly\n";
+    }
 }

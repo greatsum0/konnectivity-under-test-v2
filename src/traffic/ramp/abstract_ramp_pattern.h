@@ -1,29 +1,30 @@
+// abstract_ramp_pattern.h
 #pragma once
 
-#include "traffic_pattern.h"
-#include "client_context.h"
-#include <asio.hpp>
-#include <functional>
-#include <memory>
+#include "itraffic_pattern.h"
+#include <chrono>
 
-class AbstractRampPattern : public ITrafficPattern, public std::enable_shared_from_this<AbstractRampPattern> {
+class AbstractRampPattern : public ITrafficPattern {
 public:
-    using SendFunction = std::function<void(const std::string&)>;
+    /// @param targetRateMbps  The peak rate (Mbps) at the end of the ramp
+    /// @param rampTimeSec  How many seconds the ramp should take
+    AbstractRampPattern(double targetRateMbps, double rampTimeSec);
 
-    AbstractRampPattern(ClientContext& context, SendFunction sendFunc);
+    /// Estimate how many fixed-size packets you’ll send over durationSec.
+    /// Uses the *average* rate over the ramp (i.e. half the peak if duration==rampTime)
+    [[nodiscard]]
+    std::size_t computeMaxPackets(double durationSec,
+                                  std::size_t packetSize) const override;
 
-    void start() override;
+    /// Compute inter-packet delay based on the *current* rate at this moment.
+    std::chrono::microseconds generateDelay(size_t packetSize, double intervalSec) override;
 
 protected:
-    virtual int calculateRateMbps(int elapsed_ms) = 0;
+    /// Returns the current instantaneous rate (Mbps).
+    /// Subclasses implements its own ramp shape here.
+    [[nodiscard]] virtual double currentRateFactor(double elapsedSec) const = 0;
 
-    void scheduleNextSend();
-
-    ClientContext& context_;
-    SendFunction sendFunc_;
-    asio::steady_timer timer_;
-    int interval_ms_;
-    int elapsed_ms_;
+    double targetRateMbps;
+    double rampTimeSec_;
     std::chrono::steady_clock::time_point startTime_;
-    std::chrono::steady_clock::time_point nextPlannedTime_;
 };

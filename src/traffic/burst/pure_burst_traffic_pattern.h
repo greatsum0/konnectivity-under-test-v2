@@ -1,18 +1,19 @@
 #pragma once
 
-#include "abstract_burst_pattern.h"
+#include "burst_traffic_pattern.h"
+#include <cstddef>
 
-class PureBurstTrafficPattern : public AbstractBurstPattern {
+/// Zero mean rate, only periodic bursts.
+class PureBurstTrafficPattern final : public BurstTrafficPattern {
 public:
-    using SendFunction = std::function<void(const std::string &)>;
-
-    PureBurstTrafficPattern(ClientContext &context, SendFunction sendFunc);
-
-protected:
-    std::string generatePayload() override;
-
-private:
-    int bytes_per_interval_ = 0;
-    int burst_bytes_total_ = 0;
-    int burst_bytes_per_interval_ = 0;
+    PureBurstTrafficPattern(const double burstSizeMB,
+                            const double burstDurationSec,
+                            const double burstIntervalSec)
+        : BurstTrafficPattern(
+            /*meanRateMbps=*/0.0,
+                             burstSizeMB,
+                             burstDurationSec,
+                             burstIntervalSec
+        ) {
+    }
 };

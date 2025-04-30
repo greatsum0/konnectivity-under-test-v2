@@ -1,29 +1,46 @@
 #include "burst_traffic_pattern.h"
+#include <cmath>
+#include <algorithm>
 
-#include <iostream>
-
-#include "client_context.h"
-
-BurstTrafficPattern::BurstTrafficPattern(ClientContext &context, SendFunction sendFunc)
-    : AbstractBurstPattern(context, std::move(sendFunc)) {
-    const double base_bytes_per_sec = (context.rateMbps() * 1'000'000) / 8.0;
-    bytes_per_interval_ = static_cast<int>((base_bytes_per_sec * interval_ms_) / 1000.0);
-
-    burst_interval_ms_ = static_cast<int>(context.scenario.burst_interval_sec * 1000);
-    burst_duration_ms_ = static_cast<int>(context.scenario.burst_duration_sec * 1000);
-    burst_bytes_total_ = context.scenario.burst_size_mb * 1'000'000 / 8;
-
-    int burst_intervals = burst_duration_ms_ / interval_ms_;
-    burst_bytes_per_interval_ = burst_intervals > 0 ? burst_bytes_total_ / burst_intervals : 0;
+BurstTrafficPattern::BurstTrafficPattern(const double meanRateMbps,
+                                         const double burstSizeMB,
+                                         const double burstDurationSec,
+                                         const double burstIntervalSec)
+    : meanRateMbps_(meanRateMbps),
+      burstSizeMB_(burstSizeMB),
+      burstDurationSec_(burstDurationSec),
+      burstIntervalSec_(burstIntervalSec) {
 }
 
-std::string BurstTrafficPattern::generatePayload() {
-    std::string base_data(bytes_per_interval_, 'x');
-    bool in_burst = (elapsed_ms_ % burst_interval_ms_) < burst_duration_ms_;
+std::size_t BurstTrafficPattern::computeMaxPackets(const double durationSec, const size_t packetSize) const {
+    // compute extra burst rate (Mbps) over burstDurationSec_
+    const double burstRateMbps = (burstSizeMB_ * 8.0) / burstDurationSec_;
+    // fraction of time in burst
+    const double fracBurst = std::min(1.0, burstDurationSec_ / burstIntervalSec_);
+    // average Mbps = mean + burst fraction × burst rate
+    const double avgRate = meanRateMbps_ + fracBurst * burstRateMbps;
+    const double totalBits = avgRate * 1e6 * durationSec;
+    const double bitsPerPkt = static_cast<double>(packetSize) * 8.0;
+    return static_cast<std::size_t>(std::ceil(totalBits / bitsPerPkt));
+}
 
-    if (in_burst) {
-        std::string burst_data(burst_bytes_per_interval_, 'y');
-        return base_data + burst_data;
-    }
-    return base_data;
+std::chrono::microseconds BurstTrafficPattern::generateDelay(const size_t packetSize, const double intervalSec) {
+    using namespace std::chrono;
+    // elapsed time
+    const double elapsed = duration<double>(
+        steady_clock::now() - startTime_).count();
+    // phase in burst cycle
+    const double phase = std::fmod(elapsed, burstIntervalSec_);
+    const bool inBurst = (phase < burstDurationSec_);
+    // current rate
+    const double burstRateMbps = (burstSizeMB_ * 8.0) / burstDurationSec_;
+    double currRate = meanRateMbps_ + (inBurst ? burstRateMbps : 0.0);
+    currRate = std::max(currRate, 1e-9);
+    // bits this interval
+    const double bits = currRate * 1e6 * intervalSec;
+    const double bytes = bits / 8.0;
+    double packets = std::round(bytes / static_cast<double>(packetSize));
+    if (packets < 1.0) packets = 1.0;
+    const double dtSec = intervalSec / packets;
+    return duration_cast<microseconds>(duration<double>(dtSec));
 }

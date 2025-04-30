@@ -1,14 +1,79 @@
 #pragma once
 
-#include "traffic_pattern.h"
+#include "itraffic_pattern.h"
 #include "client_context.h"
 #include <memory>
-#include <functional>
+#include <stdexcept>
 #include <string>
+
+#include "traffic/constant/constant_traffic_pattern.h"
+#include "traffic/burst/burst_traffic_pattern.h"
+#include "traffic/burst/pure_burst_traffic_pattern.h"
+#include "traffic/burst/random_burst_traffic_pattern.h"
+#include "traffic/sinusoidal/sinusoidal_traffic_pattern.h"
+#include "traffic/ramp/ramp_up_traffic_pattern.h"
+#include "traffic/ramp/ramp_down_traffic_pattern.h"
+
 
 class TrafficPatternFactory {
 public:
-    static std::shared_ptr<ITrafficPattern> createTrafficPattern(
-        ClientContext& ctx,
-        const std::function<void(const std::string&)>& sendFunc);
+    static std::unique_ptr<ITrafficPattern> create(const ClientTrafficConfig &cfg) {
+        const auto &t = cfg.type;
+
+        if (t == "constant") {
+            return std::make_unique<ConstantTrafficPattern>(
+                cfg.rateMbps
+            );
+        }
+        if (t == "burst") {
+            return std::make_unique<BurstTrafficPattern>(
+                cfg.rateMbps,
+                cfg.burstSizeMb,
+                cfg.burstDurationSec,
+                cfg.burstIntervalSec
+            );
+        }
+        if (t == "pure_burst") {
+            return std::make_unique<PureBurstTrafficPattern>(
+                cfg.burstSizeMb,
+                cfg.burstDurationSec,
+                cfg.burstIntervalSec
+            );
+        }
+        if (t == "random_burst") {
+            return std::make_unique<RandomBurstTrafficPattern>(
+                cfg.rateMbps,
+                cfg.minBurstSizeMb,
+                cfg.maxBurstSizeMb,
+                cfg.minBurstDurationMs,
+                cfg.maxBurstDurationMs,
+                cfg.minBurstIntervalMs,
+                cfg.maxBurstIntervalMs,
+                static_cast<unsigned>(cfg.randomSeed)
+            );
+        }
+        if (t == "sinusoidal") {
+            auto &parameter = cfg;
+            double mean = parameter.rateMbps; // YAML: rate_mbps
+            double amplitude = parameter.amplitude; // YAML: amplitude
+            double frequency = parameter.frequency; // YAML: frequency (Hz)
+
+            return std::make_unique<SinusoidalTrafficPattern>(
+                mean, amplitude, frequency
+            );
+        }
+        if (t == "ramp_up") {
+            return std::make_unique<RampUpTrafficPattern>(
+                cfg.rateMbps,
+                cfg.rampUpTime
+            );
+        }
+        if (t == "ramp_down") {
+            return std::make_unique<RampDownTrafficPattern>(
+                cfg.rateMbps,
+                cfg.rampDownTime
+            );
+        }
+        throw std::invalid_argument("Unknown traffic pattern type: " + t);
+    }
 };

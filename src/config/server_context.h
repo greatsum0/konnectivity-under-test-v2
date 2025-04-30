@@ -1,28 +1,21 @@
 #pragma once
 
-#include "yaml_parser.h"
-#include "metric_collector.h"
-#include <asio.hpp>
-#include <memory>
 #include <string>
+#include <vector>
+
+#include "measurement_config.h"
+
+struct ServerNetworkConfig {
+    std::string protocol; // "tcp" or "udp"
+    int port;
+};
+
 
 struct ServerContext {
-    asio::io_context &ioContext;
-    ServerConfig config;
-    std::shared_ptr<MetricCollector> metricCollector;
+    std::string name;
+    std::string outputPath;
 
-    explicit ServerContext(asio::io_context &ctx, const ServerConfig &cfg)
-        : ioContext(ctx),
-          config(cfg),
-          metricCollector(std::make_shared<MetricCollector>(ctx, cfg.interval_sec, cfg.enabled_metrics, cfg.output_path)) {
-    }
+    MeasurementConfig measurement;
+    ServerNetworkConfig network;
 
-    [[nodiscard]] int getPortForProtocol(const std::string &protocol) const {
-        for (const auto &listener: config.listeners) {
-            if (listener.protocol == protocol) {
-                return listener.port;
-            }
-        }
-        throw std::runtime_error("Port not found for protocol: " + protocol);
-    }
 };

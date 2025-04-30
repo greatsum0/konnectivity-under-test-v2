@@ -19,7 +19,7 @@ spec:
               --config /app/config/scenario.yaml
           volumeMounts:
             - name: client-data
-              mountPath: /measurements/data
+              mountPath: /measurements/client
             - name: config-volume
               mountPath: /app/config
       restartPolicy: Never

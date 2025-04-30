@@ -9,11 +9,12 @@ Konnectivity Under Test (KUT) is a modular C++ benchmarking tool designed to sim
 
 - Dual-mode architecture: **Client** (Job) and **Server** (Deployment)
 - Protocols: TCP and UDP
-- Traffic Patterns: Constant, burst, sinusoidal, random, ramp-up, ramp-down
+- Traffic Patterns: Constant, burst (burst, random, pure), sinusoidal, ramp (up, down)
 - Scenario-based testing: YAML-driven configuration
-- Metric Collection: Throughput, CPU utilization (tool/system/normalized), and more
+- Metric Collection: Throughput, Transferred bytes, CPU utilization (tool/system), and more
 - Designed for containerized deployment with **Docker** and **Kubernetes**
 - Built-in support for **Persistent Volume Claims (PVCs)** and result collection
+- Built-in API for easy integration with other tools
 
 ---
 
@@ -21,23 +22,24 @@ Konnectivity Under Test (KUT) is a modular C++ benchmarking tool designed to sim
 
 ```
 k3s-deployment/
+├── api/                   # Flask API for the deployment controller
 ├── config/                # YAML configuration files (mounted as ConfigMap)
 │   └── server-config.yaml
 ├── configmaps/            # Generated ConfigMaps from scenario YAMLs
 ├── deployments/           # Server deployment manifest
 ├── jobs/                  # One-shot client Jobs (auto-generated)
 ├── pvc/                   # Persistent Volume Claims
-├── services/              # Server service (ClusterIP)
-├── tools/                 # PVC viewer
 ├── scenarios/             # YAML scenarios for each traffic pattern
-├── scripts (*.sh)         # Lifecycle scripts (build, deploy, status, reset, rerun)
+├── services/              # Server service (ClusterIP)
+├── templates/             # Kustomize templates for Jobs
+├── tools/                 # PVC viewer
 ├── kustomization.yaml     # Top-level Kustomize entrypoint
 └── .env                   # DockerHub credentials and namespace
 ```
 
 ---
 
-## 🧠 Deployment Model
+## Deployment Model
 
 - Server: Long-running `Deployment` on `raspberrypi-b`
 - Client: Single-run `Job` on `raspberrypi-a`
@@ -47,38 +49,63 @@ k3s-deployment/
 
 ---
 
-## 🚀 Deployment Steps
+## Deployment Steps
 
 1. **Clone the repository**
 2. **Create a `.env` file** with DockerHub credentials and desired namespace:
-```bash
+```
 AUTH_USERNAME=your-dockerhub-username
 AUTH_TOKEN=your-dockerhub-token
 NAMESPACE=kut-app
 IMAGE_NAME=temp-image/placeholder
 IMAGE_TAG=latest
 ```
-3. **Run the deployment**
+3. **Start the controller API**
+
+4. **Create a Python virtual environment**:
 
 ```bash
-./build.sh
+cd k3s-deployment/api
+
+python3 -m venv .venv
+
+source .venv/bin/activate
+
+pip install -r requirements.txt
+
+python app.py
 ```
-- `build.sh` → Generates all manifests from `scenarios/`
+The server will start on `localhost:5050` and you can port-forward it for your cluster.
 
+5. **Deploy the server**:
 
+On client side, you can access the `swagger` API documentation at `localhost:5050/apidocs` to see the available endpoints.
+
+6. **Call the following endpoints for preparation**:
+
+```
+/reset: Cleans the previous state
+/base-deployment: Deploys the base infrastructure
+/run-all: Launches all client jobs sequentially | /trigger-scenarios: Triggers the scenarios
+/copy-results: Copies the results to the master node
+/download-results: Downloads the results as a zip file
+
+```
+
+List of endpoints and their examples:
 ```bash
-./run.sh
+curl -X POST http://localhost:5050/trigger-scenarios   -H "Content-Type: application/json"   -d '{"message":"Test","changed_files":[<scenario-name>.yaml"]}'
+curl -X POST http://localhost:5050/copy-results
+curl -X POST http://localhost:5050/base-deployment
+curl -X POST http://localhost:5050/reset
+curl -X POST http://localhost:5050/run-all
+curl -X GET http://localhost:5050/status
+curl -X GET http://localhost:5050/download-results -o <zip-name>.zip
+
 ```
 
-This executes:
-- `reset.sh` → Cleans the previous state
-- `auth.sh` → Applies Docker registry secret
-- `deploy.sh` → Deploys the base infrastructure
-- `run-all-jobs.sh` → Launches all client jobs sequentially
 
----
-
-## 🔧 Configuration
+## Configuration
 
 - All client scenarios are written in `scenarios/*.yaml`
 - The server configuration is located at `config/server-config.yaml`
@@ -86,7 +113,7 @@ This executes:
 
 ---
 
-## 📦 Kustomize
+## Kustomize
 
 - Each resource category (`pvc/`, `deployments/`, `services/`, `jobs/`, `configmaps/`) has its own `kustomization.yaml`
 - The root `kustomization.yaml` includes them all
@@ -100,22 +127,28 @@ images:
 
 ---
 
-## 🔁 Rerunning Clients
+## Rerunning Clients
 
-To rerun all clients after config changes:
+To rerun all clients or a specific client Job after config changes you can simply call the following endpoint:
 
 ```bash
-./run-all-jobs.sh
+curl -X POST http://localhost:5050/run-all
+```
+
+Or 
+
+```bash
+curl -X POST http://localhost:5050/trigger-scenarios
 ```
 
 ---
 
-## 🛠️ Monitoring
+## Monitoring
 
-Use the `status.sh` script for a live snapshot:
+Use the /status endpoint to get the current status of the cluster and the jobs:
 
 ```bash
-./status.sh
+curl -X GET http://localhost:5050/status
 ```
 
 Shows:
@@ -127,40 +160,37 @@ Shows:
 
 ---
 
-## 📤 Output
+## Output
 
 Each test job stores its metrics as CSV under the shared PVC, e.g.:
 
 ```
-/measurements/data/scenario_tcp_burst.csv
+filename = <timestamp>_<scenario-name>.csv
 ```
+
+1. For client jobs:
+```
+/measurements/client/filename
+```
+2. For server jobs:
+```
+/measurements/server/filename
+```
+
+
 
 Accessible via:
-```bash
-kubectl exec -it pvc-viewer-client -- cat /measurements/data/<filename>.csv
 ```
-
-You can use the copy_results.sh script to copy all results to the master node and run the following command to copy the results to your local machine:
-
-on your local machine:
-
-```bash
-scp -P 12347 -r <user>@<master-machine-ip>:/home/<user>/Desktop ~/Desktop/
+/copy-results
+/download-results
 ```
 
 
----
 
-## 📋 Notes
-
-- ConfigMaps must match the scenario names (`kut-client-<scenario>-config`)
-- Server ConfigMap is `kut-server-config` and mounted from `config/`
+## Notes
 - Image placeholder must be overridden correctly in all `kustomization.yaml`
-
 ---
 
-## 📬 Contact
-
-For any questions or issues: [oguz.altas@tum.de](mailto:oguz.altas@tum.de)
-
+## Contact
+For any questions or issues: oguz.altas[a*t]tum.de
 ---

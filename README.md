@@ -1,24 +1,26 @@
+# Konnectivity Under Test (KUT)
 
-# 🚀 Konnectivity Under Test (KUT)
-
-Konnectivity Under Test (KUT) is a modular C++ benchmarking tool designed to simulate network traffic and measure performance in a controlled Kubernetes environment. It supports both **server** and **client** roles and is optimized for deployment on lightweight clusters like `k3s`.
+Konnectivity Under Test (KUT) is a modular C++ benchmarking tool designed to simulate network traffic and measure
+performance in a controlled Kubernetes environment. It supports both **server** and **client** roles and is optimized
+for deployment on lightweight clusters like `k3s`.
 
 ---
 
-## ✨ Features
+## Features
 
 - Dual-mode architecture: **Client** (Job) and **Server** (Deployment)
 - Protocols: TCP and UDP
 - Traffic Patterns: Constant, burst (burst, random, pure), sinusoidal, ramp (up, down)
 - Scenario-based testing: YAML-driven configuration
-- Metric Collection: Throughput, Transferred bytes, CPU utilization (tool/system), and more
+- Metric Collection: Throughput, transferred bytes, CPU utilization (tool/system), and more
+- Built-in API for easy integration (Flask-based)
+- Logging and CSV export of results
 - Designed for containerized deployment with **Docker** and **Kubernetes**
-- Built-in support for **Persistent Volume Claims (PVCs)** and result collection
-- Built-in API for easy integration with other tools
+- Supports **Persistent Volume Claims (PVCs)** for result collection
 
 ---
 
-## 🛠️ Project Structure (Kubernetes)
+## Project Structure
 
 ```
 k3s-deployment/
@@ -41,83 +43,76 @@ k3s-deployment/
 
 ## Deployment Model
 
-- Server: Long-running `Deployment` on `raspberrypi-b`
-- Client: Single-run `Job` on `raspberrypi-a`
-- Master: `pi-c` manages control plane and orchestration
-- All configurations mounted via **ConfigMaps**
-- Results exported to shared PVCs and accessible via `pvc-viewer`
+- **Server**: Long-running `Deployment` on `raspberrypi-b`
+- **Client**: Single-run `Job` on `raspberrypi-a`
+- **Master**: `pi-c` handles control plane and orchestration
+- All configurations are mounted using **ConfigMaps**
+- Results are stored on shared PVCs, accessible via the `pvc-viewer`
 
 ---
 
 ## Deployment Steps
 
 1. **Clone the repository**
+
 2. **Create a `.env` file** with DockerHub credentials and desired namespace:
-```
-AUTH_USERNAME=your-dockerhub-username
-AUTH_TOKEN=your-dockerhub-token
-NAMESPACE=kut-app
-IMAGE_NAME=temp-image/placeholder
-IMAGE_TAG=latest
-```
-3. **Start the controller API**
+   ```
+   AUTH_USERNAME=your-dockerhub-username
+   AUTH_TOKEN=your-dockerhub-token
+   NAMESPACE=kut-app
+   IMAGE_NAME=temp-image/placeholder
+   IMAGE_TAG=latest
+   ```
 
-4. **Create a Python virtual environment**:
+3. **Start the Flask API controller**:
+   ```bash
+   cd k3s-deployment/api
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   python app.py
+   ```
+   The server starts at `localhost:5050`. Port-forward it as needed for cluster access.
 
-```bash
-cd k3s-deployment/api
+4. **Deploy the server** and use the Swagger UI at `localhost:5050/apidocs` to explore API endpoints.
 
-python3 -m venv .venv
+5. **Use the following API endpoints for orchestration**:
+   ```
+   /reset             # Cleans the previous state
+   /base-deployment   # Deploys the base infrastructure
+   /run-all           # Launches all client jobs sequentially
+   /trigger-scenarios # Triggers selected scenario jobs
+   /copy-results      # Copies results to master node
+   /download-results  # Downloads results as a ZIP file
+   ```
 
-source .venv/bin/activate
+   Example usage:
+   ```bash
+   curl -X POST http://localhost:5050/trigger-scenarios -H "Content-Type: application/json" -d '{"message":"Test","changed_files":["<scenario-name>.yaml"]}'
+   curl -X POST http://localhost:5050/copy-results
+   curl -X POST http://localhost:5050/base-deployment
+   curl -X POST http://localhost:5050/reset
+   curl -X POST http://localhost:5050/run-all
+   curl -X GET  http://localhost:5050/status
+   curl -X GET  http://localhost:5050/download-results -o <zip-name>.zip
+   ```
 
-pip install -r requirements.txt
-
-python app.py
-```
-The server will start on `localhost:5050` and you can port-forward it for your cluster.
-
-5. **Deploy the server**:
-
-On client side, you can access the `swagger` API documentation at `localhost:5050/apidocs` to see the available endpoints.
-
-6. **Call the following endpoints for preparation**:
-
-```
-/reset: Cleans the previous state
-/base-deployment: Deploys the base infrastructure
-/run-all: Launches all client jobs sequentially | /trigger-scenarios: Triggers the scenarios
-/copy-results: Copies the results to the master node
-/download-results: Downloads the results as a zip file
-
-```
-
-List of endpoints and their examples:
-```bash
-curl -X POST http://localhost:5050/trigger-scenarios   -H "Content-Type: application/json"   -d '{"message":"Test","changed_files":[<scenario-name>.yaml"]}'
-curl -X POST http://localhost:5050/copy-results
-curl -X POST http://localhost:5050/base-deployment
-curl -X POST http://localhost:5050/reset
-curl -X POST http://localhost:5050/run-all
-curl -X GET http://localhost:5050/status
-curl -X GET http://localhost:5050/download-results -o <zip-name>.zip
-
-```
-
+---
 
 ## Configuration
 
-- All client scenarios are written in `scenarios/*.yaml`
-- The server configuration is located at `config/server-config.yaml`
-- Each client config is automatically converted into a `ConfigMap` and a `Job`
+- Client scenarios: `scenarios/*.yaml`
+- Server config: `config/server-config.yaml`
+- All client configs are converted into Kubernetes `ConfigMap` and `Job` resources automatically.
 
 ---
 
 ## Kustomize
 
-- Each resource category (`pvc/`, `deployments/`, `services/`, `jobs/`, `configmaps/`) has its own `kustomization.yaml`
-- The root `kustomization.yaml` includes them all
-- Image override is done via:
+Each Kubernetes resource category has its own `kustomization.yaml`, and the root includes all of them.
+
+Image override:
+
 ```yaml
 images:
   - name: placeholder/temp-image
@@ -129,13 +124,13 @@ images:
 
 ## Rerunning Clients
 
-To rerun all clients or a specific client Job after config changes you can simply call the following endpoint:
+To rerun all clients:
 
 ```bash
 curl -X POST http://localhost:5050/run-all
 ```
 
-Or 
+Or to rerun specific scenarios:
 
 ```bash
 curl -X POST http://localhost:5050/trigger-scenarios
@@ -145,52 +140,48 @@ curl -X POST http://localhost:5050/trigger-scenarios
 
 ## Monitoring
 
-Use the /status endpoint to get the current status of the cluster and the jobs:
+Check current job and node status:
 
 ```bash
 curl -X GET http://localhost:5050/status
 ```
 
-Shows:
+Returns:
+
 - Nodes
 - Deployments
 - Jobs and Pods
 - PVCs
-- Events
+- Kubernetes Events
 
 ---
 
 ## Output
 
-Each test job stores its metrics as CSV under the shared PVC, e.g.:
+Metrics are saved as CSV files under the shared PVC:
 
 ```
-filename = <timestamp>_<scenario-name>.csv
+<timestamp>_<scenario-name>.csv
 ```
 
-1. For client jobs:
-```
-/measurements/client/filename
-```
-2. For server jobs:
-```
-/measurements/server/filename
-```
+- Client results: `/measurements/client/<filename>`
+- Server results: `/measurements/server/<filename>`
 
+You can access these using:
 
-
-Accessible via:
 ```
 /copy-results
 /download-results
 ```
 
-
+---
 
 ## Notes
-- Image placeholder must be overridden correctly in all `kustomization.yaml`
+
+- The image placeholder must be overridden in all relevant `kustomization.yaml` files.
+
 ---
 
 ## Contact
-For any questions or issues: oguz.altas[a*t]tum.de
----
+
+For any questions or issues, feel free to reach out via the GitHub repository issues page.

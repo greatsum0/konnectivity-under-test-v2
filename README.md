@@ -1,96 +1,118 @@
+# Konnectivity Under Test (KUT)
 
-# 🚀 Konnectivity Under Test (KUT)
-
-Konnectivity Under Test (KUT) is a modular C++ benchmarking tool designed to simulate network traffic and measure performance in a controlled Kubernetes environment. It supports both **server** and **client** roles and is optimized for deployment on lightweight clusters like `k3s`.
+Konnectivity Under Test (KUT) is a modular C++ benchmarking tool designed to simulate network traffic and measure
+performance in a controlled Kubernetes environment. It supports both **server** and **client** roles and is optimized
+for deployment on lightweight clusters like `k3s`.
 
 ---
 
-## ✨ Features
+## Features
 
 - Dual-mode architecture: **Client** (Job) and **Server** (Deployment)
 - Protocols: TCP and UDP
-- Traffic Patterns: Constant, burst, sinusoidal, random, ramp-up, ramp-down
+- Traffic Patterns: Constant, burst (burst, random, pure), sinusoidal, ramp (up, down)
 - Scenario-based testing: YAML-driven configuration
-- Metric Collection: Throughput, CPU utilization (tool/system/normalized), and more
+- Metric Collection: Throughput, transferred bytes, CPU utilization (tool/system), and more
+- Built-in API for easy integration (Flask-based)
+- Logging and CSV export of results
 - Designed for containerized deployment with **Docker** and **Kubernetes**
-- Built-in support for **Persistent Volume Claims (PVCs)** and result collection
+- Supports **Persistent Volume Claims (PVCs)** for result collection
 
 ---
 
-## 🛠️ Project Structure (Kubernetes)
+## Project Structure
 
 ```
 k3s-deployment/
+├── api/                   # Flask API for the deployment controller
 ├── config/                # YAML configuration files (mounted as ConfigMap)
 │   └── server-config.yaml
 ├── configmaps/            # Generated ConfigMaps from scenario YAMLs
 ├── deployments/           # Server deployment manifest
 ├── jobs/                  # One-shot client Jobs (auto-generated)
 ├── pvc/                   # Persistent Volume Claims
-├── services/              # Server service (ClusterIP)
-├── tools/                 # PVC viewer
 ├── scenarios/             # YAML scenarios for each traffic pattern
-├── scripts (*.sh)         # Lifecycle scripts (build, deploy, status, reset, rerun)
+├── services/              # Server service (ClusterIP)
+├── templates/             # Kustomize templates for Jobs
+├── tools/                 # PVC viewer
 ├── kustomization.yaml     # Top-level Kustomize entrypoint
 └── .env                   # DockerHub credentials and namespace
 ```
 
 ---
 
-## 🧠 Deployment Model
+## Deployment Model
 
-- Server: Long-running `Deployment` on `raspberrypi-b`
-- Client: Single-run `Job` on `raspberrypi-a`
-- Master: `pi-c` manages control plane and orchestration
-- All configurations mounted via **ConfigMaps**
-- Results exported to shared PVCs and accessible via `pvc-viewer`
+- **Server**: Long-running `Deployment` on `raspberrypi-b`
+- **Client**: Single-run `Job` on `raspberrypi-a`
+- **Master**: `pi-c` handles control plane and orchestration
+- All configurations are mounted using **ConfigMaps**
+- Results are stored on shared PVCs, accessible via the `pvc-viewer`
 
 ---
 
-## 🚀 Deployment Steps
+## Deployment Steps
 
 1. **Clone the repository**
+
 2. **Create a `.env` file** with DockerHub credentials and desired namespace:
-```bash
-AUTH_USERNAME=your-dockerhub-username
-AUTH_TOKEN=your-dockerhub-token
-NAMESPACE=kut-app
-IMAGE_NAME=temp-image/placeholder
-IMAGE_TAG=latest
-```
-3. **Run the deployment**
+   ```
+   AUTH_USERNAME=your-dockerhub-username
+   AUTH_TOKEN=your-dockerhub-token
+   NAMESPACE=kut-app
+   IMAGE_NAME=temp-image/placeholder
+   IMAGE_TAG=latest
+   ```
 
-```bash
-./build.sh
-```
-- `build.sh` → Generates all manifests from `scenarios/`
+3. **Start the Flask API controller**:
+   ```bash
+   cd k3s-deployment/api
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   python app.py
+   ```
+   The server starts at `localhost:5050`. Port-forward it as needed for cluster access.
 
+4. **Deploy the server** and use the Swagger UI at `localhost:5050/apidocs` to explore API endpoints.
 
-```bash
-./run.sh
-```
+5. **Use the following API endpoints for orchestration**:
+   ```
+   /reset             # Cleans the previous state
+   /base-deployment   # Deploys the base infrastructure
+   /run-all           # Launches all client jobs sequentially
+   /trigger-scenarios # Triggers selected scenario jobs
+   /copy-results      # Copies results to master node
+   /download-results  # Downloads results as a ZIP file
+   ```
 
-This executes:
-- `reset.sh` → Cleans the previous state
-- `auth.sh` → Applies Docker registry secret
-- `deploy.sh` → Deploys the base infrastructure
-- `run-all-jobs.sh` → Launches all client jobs sequentially
+   Example usage:
+   ```bash
+   curl -X POST http://localhost:5050/trigger-scenarios -H "Content-Type: application/json" -d '{"message":"Test","changed_files":["<scenario-name>.yaml"]}'
+   curl -X POST http://localhost:5050/copy-results
+   curl -X POST http://localhost:5050/base-deployment
+   curl -X POST http://localhost:5050/reset
+   curl -X POST http://localhost:5050/run-all
+   curl -X GET  http://localhost:5050/status
+   curl -X GET  http://localhost:5050/download-results -o <zip-name>.zip
+   ```
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
-- All client scenarios are written in `scenarios/*.yaml`
-- The server configuration is located at `config/server-config.yaml`
-- Each client config is automatically converted into a `ConfigMap` and a `Job`
+- Client scenarios: `scenarios/*.yaml`
+- Server config: `config/server-config.yaml`
+- All client configs are converted into Kubernetes `ConfigMap` and `Job` resources automatically.
 
 ---
 
-## 📦 Kustomize
+## Kustomize
 
-- Each resource category (`pvc/`, `deployments/`, `services/`, `jobs/`, `configmaps/`) has its own `kustomization.yaml`
-- The root `kustomization.yaml` includes them all
-- Image override is done via:
+Each Kubernetes resource category has its own `kustomization.yaml`, and the root includes all of them.
+
+Image override:
+
 ```yaml
 images:
   - name: placeholder/temp-image
@@ -100,67 +122,66 @@ images:
 
 ---
 
-## 🔁 Rerunning Clients
+## Rerunning Clients
 
-To rerun all clients after config changes:
+To rerun all clients:
 
 ```bash
-./run-all-jobs.sh
+curl -X POST http://localhost:5050/run-all
+```
+
+Or to rerun specific scenarios:
+
+```bash
+curl -X POST http://localhost:5050/trigger-scenarios
 ```
 
 ---
 
-## 🛠️ Monitoring
+## Monitoring
 
-Use the `status.sh` script for a live snapshot:
+Check current job and node status:
 
 ```bash
-./status.sh
+curl -X GET http://localhost:5050/status
 ```
 
-Shows:
+Returns:
+
 - Nodes
 - Deployments
 - Jobs and Pods
 - PVCs
-- Events
+- Kubernetes Events
 
 ---
 
-## 📤 Output
+## Output
 
-Each test job stores its metrics as CSV under the shared PVC, e.g.:
+Metrics are saved as CSV files under the shared PVC:
 
 ```
-/measurements/data/scenario_tcp_burst.csv
+<timestamp>_<scenario-name>.csv
 ```
 
-Accessible via:
-```bash
-kubectl exec -it pvc-viewer-client -- cat /measurements/data/<filename>.csv
+- Client results: `/measurements/client/<filename>`
+- Server results: `/measurements/server/<filename>`
+
+You can access these using:
+
 ```
-
-You can use the copy_results.sh script to copy all results to the master node and run the following command to copy the results to your local machine:
-
-on your local machine:
-
-```bash
-scp -P 12347 -r <user>@<master-machine-ip>:/home/<user>/Desktop ~/Desktop/
+/copy-results
+/download-results
 ```
-
 
 ---
 
-## 📋 Notes
+## Notes
 
-- ConfigMaps must match the scenario names (`kut-client-<scenario>-config`)
-- Server ConfigMap is `kut-server-config` and mounted from `config/`
-- Image placeholder must be overridden correctly in all `kustomization.yaml`
+- The image placeholder must be overridden in all relevant `kustomization.yaml` files.
 
 ---
 
-## 📬 Contact
+## Contact
 
-For any questions or issues: [oguz.altas@tum.de](mailto:oguz.altas@tum.de)
-
----
+For any questions or issues, feel free to reach out via the GitHub repository issues page.

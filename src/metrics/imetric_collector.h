@@ -9,12 +9,23 @@ struct IMetricCollector {
         std::chrono::system_clock::time_point ts,
         uint64_t bytesIn,
         uint64_t bytesOut
-    ) = 0;
+    ) {
+        // default no-op
+    }
 
     // called when CPU samples arrive
     virtual void onCpuSample(
         std::chrono::system_clock::time_point ts,
         double totalCpuPct,
         double selfCpuPct
-    ) = 0;
+    ) {
+        // default no-op
+    }
+
+    virtual void onCpuDetailSample(
+        std::chrono::system_clock::time_point,
+        double, double, double, double,
+        double, double) {
+        // default no-op
+    }
 };

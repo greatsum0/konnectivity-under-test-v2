@@ -4,44 +4,45 @@
 #include <atomic>
 #include <functional>
 #include <chrono>
-#include <unistd.h>  // for sysconf
+#include <vector>
 
-/// Calls your callback every intervalSec with two samples:
-///  - total CPU usage (%) across all cores
-///  - this process’s CPU usage (%)
+// #if __linux__
+#include <unistd.h>
+// #endif
+
 class CPUUsageMonitor {
 public:
-    /// cpuPctTotal, cpuPctSelf
-    using Callback = std::function<void(double cpuPctTotal,
-                                        double cpuPctSelf)>;
+    using ExtendedCallback = std::function<void(
+        double cpu0, double cpu1, double cpu2, double cpu3,
+        double totalCoreUsage,
+        double selfCpu,
+        double selfShareVsTotal,
+        double selfShareVsSystemCap)>;
 
-    /// @param intervalSec  how often (seconds) to report metrics
     explicit CPUUsageMonitor(double intervalSec);
 
     ~CPUUsageMonitor();
 
-    /// Starts the background sampling thread.
-    void start(Callback cb);
+    void start(ExtendedCallback cb);
 
-    /// Stops it (blocks until thread exits).
     void stop();
 
 private:
-    double readTotalCPUUsage() const;
+    std::vector<double> readPerCoreUsages(double &outSum) const;
 
     double readSelfCPUUsage() const;
 
     const double intervalSec_;
     std::thread timerThread_;
     std::atomic<bool> running_{false};
-    Callback callback_;
+    ExtendedCallback callback_;
 
-    // for total‐CPU delta computation
-    mutable long long prevTotal_{0}, prevIdle_{0};
+    mutable std::vector<long long> prevTotal_;
+    mutable std::vector<long long> prevIdle_;
 
-    // number of logical cores for per‐process %
 #if __linux__
-    const long coreCount_{sysconf(_SC_NPROCESSORS_ONLN)};
+    const long coreCount_;
+#else
+    const long coreCount_ = 4;
 #endif
-
 };

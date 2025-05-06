@@ -3,32 +3,52 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <thread>
-#include <chrono>
 
-CPUUsageMonitor::CPUUsageMonitor(double intervalSec)
-    : intervalSec_(intervalSec) {
+CPUUsageMonitor::CPUUsageMonitor(const double intervalSec)
+    : intervalSec_(intervalSec)
+#if __linux__
+    , coreCount_(sysconf(_SC_NPROCESSORS_ONLN))
+#endif
+{
+#if __linux__
+    prevTotal_.resize(coreCount_, 0);
+    prevIdle_.resize(coreCount_, 0);
+#endif
 }
 
 CPUUsageMonitor::~CPUUsageMonitor() {
     stop();
 }
 
-void CPUUsageMonitor::start(Callback cb) {
+void CPUUsageMonitor::start(ExtendedCallback cb) {
     if (running_) return;
     callback_ = std::move(cb);
     running_ = true;
 
     timerThread_ = std::thread([this]() {
-        using namespace std::chrono;
-        auto next = steady_clock::now() + duration<double>(intervalSec_);
+        auto next = std::chrono::steady_clock::now() + std::chrono::duration<double>(intervalSec_);
         while (running_) {
             std::this_thread::sleep_until(next);
-            next += duration<double>(intervalSec_);
+            next += std::chrono::duration<double>(intervalSec_);
 
-            double totalCpu = readTotalCPUUsage();
-            double selfCpu = readSelfCPUUsage();
-            if (callback_) callback_(totalCpu, selfCpu);
+            double totalSum = 0.0;
+            std::vector<double> cores = readPerCoreUsages(totalSum);
+            const double selfCpu = readSelfCPUUsage();
+
+            const double selfShareVsTotal = (totalSum > 0.0) ? (selfCpu / totalSum) * 100.0 : 0.0;
+            const double selfShareVsSystemCap = (selfCpu / (coreCount_ * 100.0)) * 100.0;
+
+            if (callback_)
+                callback_(
+                    cores.size() > 0 ? cores[0] : 0.0,
+                    cores.size() > 1 ? cores[1] : 0.0,
+                    cores.size() > 2 ? cores[2] : 0.0,
+                    cores.size() > 3 ? cores[3] : 0.0,
+                    totalSum,
+                    selfCpu,
+                    selfShareVsTotal,
+                    selfShareVsSystemCap
+                );
         }
     });
 }
@@ -39,37 +59,55 @@ void CPUUsageMonitor::stop() {
     if (timerThread_.joinable()) timerThread_.join();
 }
 
-double CPUUsageMonitor::readTotalCPUUsage() const {
+std::vector<double> CPUUsageMonitor::readPerCoreUsages(double &outSum) const {
 #if __linux__
     std::ifstream statFile("/proc/stat");
     std::string line;
-    std::getline(statFile, line);
-    std::istringstream ss(line);
+    std::vector<double> usages;
+    outSum = 0.0;
 
-    std::string cpuLabel;
-    long long user, nice, system, idle, iowait, irq, softirq, steal;
-    ss >> cpuLabel
-            >> user >> nice >> system >> idle
-            >> iowait >> irq >> softirq >> steal;
+    int cpuIndex = 0;
+    while (std::getline(statFile, line)) {
+        if (line.rfind("cpu", 0) == 0 && line[3] >= '0' && line[3] <= '9') {
+            std::istringstream ss(line);
+            std::string label;
+            long long user, nice, system, idle, iowait, irq, softirq, steal;
+            ss >> label >> user >> nice >> system >> idle >> iowait >> irq >> softirq >> steal;
 
-    long long total = user + nice + system + idle + iowait + irq + softirq + steal;
-    long long used = total - idle;
+            long long total = user + nice + system + idle + iowait + irq + softirq + steal;
+            long long currIdle = idle + iowait;
 
-    long long deltaTotal = total - prevTotal_;
-    long long deltaIdle = idle - prevIdle_;
-    long long deltaUsed = deltaTotal - deltaIdle;
+            if (prevTotal_[cpuIndex] == 0 && prevIdle_[cpuIndex] == 0) {
+                prevTotal_[cpuIndex] = total;
+                prevIdle_[cpuIndex] = currIdle;
+                usages.push_back(0.0);
+            } else {
+                long long deltaTotal = total - prevTotal_[cpuIndex];
+                long long deltaIdle = currIdle - prevIdle_[cpuIndex];
+                long long deltaUsed = deltaTotal - deltaIdle;
 
-    prevTotal_ = total;
-    prevIdle_ = idle;
+                prevTotal_[cpuIndex] = total;
+                prevIdle_[cpuIndex] = currIdle;
 
-    // first compute “percent busy” over all CPUs…
-    double percentBusy = (deltaTotal > 0)
-                     ? (static_cast<double>(deltaUsed) * 100.0 / static_cast<double>(deltaTotal))
-                     : 0.0;
-    // …then multiply by coreCount_ to get total‐core percentage
-    return percentBusy * static_cast<double>(coreCount_);
+                double usage = (deltaTotal > 0)
+                                   ? (static_cast<double>(deltaUsed) * 100.0 / deltaTotal)
+                                   : 0.0;
+
+                usages.push_back(usage);
+                outSum += usage;
+            }
+
+            ++cpuIndex;
+            if (cpuIndex >= coreCount_) break;
+        }
+    }
+
+    return usages;
+
 #else
-    return 5.0;
+    // MOCK VALUES for non-Linux
+    outSum = 80.0;
+    return {20.0, 25.0, 15.0, 20.0};
 #endif
 }
 
@@ -82,32 +120,36 @@ double CPUUsageMonitor::readSelfCPUUsage() const {
 
     std::string token;
     long utime = 0, stime = 0;
-    // fields: pid(1) comm(2) state(3) ppid(4) pgrp(5) session(6)
-    //         tty_nr(7) tpgid(8) flags(9) minflt(10) cminflt(11)
-    //         majflt(12) cmajflt(13) utime(14) stime(15)
     for (int i = 1; i <= 15; ++i) {
         selfStream >> token;
         if (i == 14) utime = std::stol(token);
         if (i == 15) stime = std::stol(token);
     }
 
-    static long long previousJiffies = 0;
     long long currentJiffies = utime + stime;
+    static long long previousJiffies = -1;
+    static auto previousTime = std::chrono::steady_clock::now();
+
+    auto currentTime = std::chrono::steady_clock::now();
+
+    if (previousJiffies == -1) {
+        previousJiffies = currentJiffies;
+        previousTime = currentTime;
+        return 0.0;
+    }
+
     long long deltaJiffies = currentJiffies - previousJiffies;
     previousJiffies = currentJiffies;
 
-    static auto previousTime = std::chrono::steady_clock::now();
-    auto currentTime = std::chrono::steady_clock::now();
     std::chrono::duration<double> wallElapsed = currentTime - previousTime;
     previousTime = currentTime;
 
     const double jiffiesPerSec = static_cast<double>(sysconf(_SC_CLK_TCK));
     if (wallElapsed.count() <= 0.0) return 0.0;
 
-    // CPU% = (process jiffies / (jiffies/sec * elapsedSec)) normalized by core count
-    return (static_cast<double>(deltaJiffies) * 100.0 * coreCount_)
+    return (static_cast<double>(deltaJiffies) * 100.0)
            / (jiffiesPerSec * wallElapsed.count());
 #else
-    return 6.0;
+    return 18.0; // MOCK: %18 self CPU
 #endif
 }

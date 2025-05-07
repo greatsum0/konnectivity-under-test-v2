@@ -13,11 +13,12 @@
 class CPUUsageMonitor {
 public:
     using ExtendedCallback = std::function<void(
-        double cpu0, double cpu1, double cpu2, double cpu3,
-        double totalCoreUsage,
+        const std::vector<double>& perCoreUsages,
+        double totalCoreCpu,
         double selfCpu,
         double selfShareVsTotal,
-        double selfShareVsSystemCap)>;
+        double selfShareVsSystemCap
+    )>;
 
     explicit CPUUsageMonitor(double intervalSec);
 

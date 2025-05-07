@@ -24,8 +24,9 @@ struct IMetricCollector {
 
     virtual void onCpuDetailSample(
         std::chrono::system_clock::time_point,
-        double, double, double, double,
-        double, double) {
+        const std::vector<double> &,
+        double,
+        double) {
         // default no-op
     }
 };

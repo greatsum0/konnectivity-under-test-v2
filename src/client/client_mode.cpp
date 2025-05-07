@@ -84,15 +84,16 @@ void ClientMode::run() const {
     // 3) CPU callback
     auto cpu_collectors = MetricCollectorFactory::create(context.measurement, cpuMetrics);
     cpuMonitor.start(
-        [&](const double cpu0, const double cpu1, const double cpu2, const double cpu3,
-            const double totalCore, const double selfCpu,
-            const double selfShareTotal, const double selfShareCap) {
-
+        [&](const std::vector<double> &perCoreUsages,
+            const double totalCore,
+            const double selfCpu,
+            const double selfShareTotal,
+            const double selfShareCap) {
             const auto now = std::chrono::system_clock::now();
 
-            for (const auto& c : cpu_collectors) {
+            for (const auto &c: cpu_collectors) {
                 c->onCpuSample(now, totalCore, selfCpu);
-                c->onCpuDetailSample(now, cpu0, cpu1, cpu2, cpu3,
+                c->onCpuDetailSample(now, perCoreUsages,
                                      selfShareTotal, selfShareCap);
             }
         }

@@ -63,6 +63,8 @@ add_executable(kut ${KUT_SOURCES}
         src/metrics/metric_collector_factory.cpp
         src/metrics/metric_collector_factory.h
         src/config/measurement_config.h
+        src/network/tcp_control_channel.cpp
+        src/network/tcp_control_channel.h
 )
 
 # Link yaml-cpp

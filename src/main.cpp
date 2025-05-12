@@ -15,17 +15,19 @@ int main(int argc, char **argv) {
     std::string mode = parser.getMode(); // "client" or "server"
 
     if (mode == "client") {
-        std::unique_ptr<ClientContext> clientCtx = std::make_unique<ClientContext>(
-            YamlParser::parseClientContext(configPath));
+        auto clientCtx = std::make_unique<ClientContext>(
+            YamlParser::parseClientContextFromFile(configPath)
+        );
         ClientMode clientApp(*clientCtx);
         clientApp.run();
     } else if (mode == "server") {
-        std::unique_ptr<ServerContext> serverCtx = std::make_unique<ServerContext>(
-            YamlParser::parseServerContext(configPath));
+        auto serverCtx = std::make_unique<ServerContext>(
+            YamlParser::parseServerContextFromFile(configPath)
+        );
         ServerMode serverApp(*serverCtx);
         serverApp.run();
     } else {
-        std::cerr << "Invalid mode: " << mode << "\n";
+        std::cerr << "[ERROR] Invalid mode: " << mode << "\n";
         return 1;
     }
 

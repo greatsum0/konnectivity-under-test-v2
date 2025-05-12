@@ -15,4 +15,8 @@ spec:
       protocol: UDP
       port: 23456
       targetPort: 23456
+    - name: ui-server
+      protocol: TCP
+      port: 6070
+      targetPort: 6070
   type: ClusterIP

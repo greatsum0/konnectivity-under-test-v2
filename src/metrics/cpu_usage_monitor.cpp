@@ -36,14 +36,13 @@ void CPUUsageMonitor::start(ExtendedCallback cb) {
             const double selfCpu = readSelfCPUUsage();
 
             const double selfShareVsTotal = (totalSum > 0.0) ? (selfCpu / totalSum) * 100.0 : 0.0;
-            const double selfShareVsSystemCap = (selfCpu / (coreCount_ * 100.0)) * 100.0;
+            const double selfShareVsSystemCap = (cores.size() > 0)
+                ? (selfCpu / (cores.size() * 100.0)) * 100.0
+                : 0.0;
 
             if (callback_)
                 callback_(
-                    cores.size() > 0 ? cores[0] : 0.0,
-                    cores.size() > 1 ? cores[1] : 0.0,
-                    cores.size() > 2 ? cores[2] : 0.0,
-                    cores.size() > 3 ? cores[3] : 0.0,
+                    cores,
                     totalSum,
                     selfCpu,
                     selfShareVsTotal,
@@ -68,7 +67,7 @@ std::vector<double> CPUUsageMonitor::readPerCoreUsages(double &outSum) const {
 
     int cpuIndex = 0;
     while (std::getline(statFile, line)) {
-        if (line.rfind("cpu", 0) == 0 && line[3] >= '0' && line[3] <= '9') {
+        if (line.rfind("cpu", 0) == 0 && line.length() > 3 && std::isdigit(line[3])) {
             std::istringstream ss(line);
             std::string label;
             long long user, nice, system, idle, iowait, irq, softirq, steal;
@@ -76,6 +75,11 @@ std::vector<double> CPUUsageMonitor::readPerCoreUsages(double &outSum) const {
 
             long long total = user + nice + system + idle + iowait + irq + softirq + steal;
             long long currIdle = idle + iowait;
+
+            if (cpuIndex >= prevTotal_.size()) {
+                prevTotal_.resize(cpuIndex + 1, 0);
+                prevIdle_.resize(cpuIndex + 1, 0);
+            }
 
             if (prevTotal_[cpuIndex] == 0 && prevIdle_[cpuIndex] == 0) {
                 prevTotal_[cpuIndex] = total;
@@ -98,7 +102,6 @@ std::vector<double> CPUUsageMonitor::readPerCoreUsages(double &outSum) const {
             }
 
             ++cpuIndex;
-            if (cpuIndex >= coreCount_) break;
         }
     }
 

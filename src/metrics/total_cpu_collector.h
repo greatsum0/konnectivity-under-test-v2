@@ -21,10 +21,7 @@ public:
 
     void onCpuDetailSample(
         std::chrono::system_clock::time_point ts,
-        double cpu0,
-        double cpu1,
-        double cpu2,
-        double cpu3,
+        const std::vector<double> &perCoreUsages,
         double selfShareTotal,
         double selfShareCap) override;
 

@@ -9,6 +9,8 @@ public:
 
     void start() override;
 
+    void stop() override;
+
 private:
     void receive();
 

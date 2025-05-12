@@ -110,121 +110,122 @@ void ServerMode::startCpuMonitor(CPUUsageMonitor &monitor,
 }
 
 void ServerMode::run() {
-    ioTcpController = std::make_shared<asio::io_context>();
-    const auto acceptor = std::make_shared<asio::ip::tcp::acceptor>(*ioTcpController,
-                                                                    asio::ip::tcp::endpoint(
-                                                                        asio::ip::tcp::v4(), CONTROL_PORT));
+    // 1) Single io_context for everything
+    ioContext = std::make_shared<asio::io_context>();
 
+    // 2) TCP acceptor on CONTROL_PORT
+    auto acceptor = std::make_shared<asio::ip::tcp::acceptor>(
+        *ioContext,
+        asio::ip::tcp::endpoint(asio::ip::tcp::v4(), CONTROL_PORT)
+    );
 
-    acceptor->async_accept([&](std::error_code ec, asio::ip::tcp::socket socket) {
-        if (ec) {
-            std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
-            return;
-        }
-
-        std::cout << "[SERVER] Client connected.\n";
-
-        // create TcpControlChannel and assign the socket
-        controlChannel = std::make_shared<TcpControlChannel>(*ioTcpController);
-        controlChannel->assignSocket(std::move(socket));
-
-        // define the message callback
-        controlChannel->setMessageCallback([this, acceptor](const std::string &msg) {
-            std::cout << "[SERVER] Message received: " << msg << "\n";
-            if (msg.find("scenario:") != std::string::npos) {
-                std::cout << "[SERVER] Scenario received, sending START_SCENARIO\n";
-
-                // Extract the scenario YAML from the message
-                clientContext = YamlParser::parseClientContextFromString(msg);
-
-                // 2) network callback
-
-                networkMonitor_ = std::make_unique<PortTrafficMonitor>(
-                    context.measurement.interface,
-                    context.network.port,
-                    context.measurement.intervalSec
-                );
-                networkCollectors_ = MetricCollectorFactory::create(context.measurement, networkMetrics);
-                startNetworkMonitor(*networkMonitor_, networkCollectors_);
-
-                // 3) CPU callback
-                cpuMonitor_ = std::make_unique<CPUUsageMonitor>(
-                    context.measurement.intervalSec
-                );
-
-                cpuCollectors_ = MetricCollectorFactory::create(context.measurement, cpuMetrics);
-                startCpuMonitor(*cpuMonitor_, cpuCollectors_);
-
-
-                //start the server mode
-                ioTraffic = std::make_shared<asio::io_context>();
-                baseServer = createNetworkServer(*ioTraffic);
-
-                baseServer->start();
-                controlChannel->send("START_SCENARIO\n");
-                ioTraffic->run();
-
-                networkMonitor_->stop();
-                cpuMonitor_->stop();
-
-                const std::vector<Metric> allMetrics = combineMetrics();
-
-                utils::PrettyPrinter::printPivotTable(allMetrics);
-
-                writeToCsv(allMetrics);
-
-                std::cout << "[SERVER] Server shutting down, metrics stopped.\n";
-
-                ioTraffic->stop();
-            } else if (msg.find("END_SCENARIO") != std::string::npos) {
-                std::cout << "[SERVER] End of scenario received.\n";
-
-                if (baseServer) {
-                    baseServer->stop();
-                    baseServer.reset();
-                }
-
-                if (ioTraffic) {
-                    ioTraffic->stop();
-                    ioTraffic.reset();
-                }
-
-                if (networkMonitor_) {
-                    networkMonitor_->stop();
-                    networkMonitor_.reset();
-                }
-
-                if (cpuMonitor_) {
-                    cpuMonitor_->stop();
-                    cpuMonitor_.reset();
-                }
-
-                cpuCollectors_.clear();
-                networkCollectors_.clear();
-
-                if (controlChannel) {
-                    controlChannel->close();
-                }
-
-                if (acceptor) {
-                    acceptor->close();
-                }
-
-                ioTcpController->stop();
-            } else {
-                std::cout << "[SERVER] Unknown message: " << msg << "\n";
+    acceptor->async_accept(
+        [this, acceptor](std::error_code ec, asio::ip::tcp::socket socket) {
+            if (ec) {
+                std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
+                return;
             }
-        });
-        std::cout << "[SERVER] Control channel created.\n";
-        // start the read loop
-        controlChannel->startReadLoop();
-    });
+
+            std::cout << "[SERVER] Client connected.\n";
+
+            // 3) Set up control channel on the same io_context
+            controlChannel = std::make_shared<TcpControlChannel>(*ioContext);
+            controlChannel->assignSocket(std::move(socket));
+            controlChannel->setMessageCallback(
+                [this, acceptor](const std::string &msg) {
+                    std::cout << "[SERVER] Message received: " << msg << "\n";
+
+                    if (msg.find("scenario:") != std::string::npos) {
+                        std::cout << "[SERVER] Scenario received, sending START_SCENARIO\n";
+                        clientContext = YamlParser::parseClientContextFromString(msg);
+
+                        // --- start monitors as before ---
+                        networkMonitor_ = std::make_unique<PortTrafficMonitor>(
+                            context.measurement.interface,
+                            context.network.port,
+                            context.measurement.intervalSec
+                        );
+                        networkCollectors_ = MetricCollectorFactory::create(
+                            context.measurement, networkMetrics
+                        );
+                        startNetworkMonitor(*networkMonitor_, networkCollectors_);
+
+                        cpuMonitor_ = std::make_unique<CPUUsageMonitor>(
+                            context.measurement.intervalSec
+                        );
+                        cpuCollectors_ = MetricCollectorFactory::create(
+                            context.measurement, cpuMetrics
+                        );
+                        startCpuMonitor(*cpuMonitor_, cpuCollectors_);
+
+                        // --- create and start your traffic server on the same io_context ---
+                        baseServer = createNetworkServer(*ioContext);
+                        baseServer->start();
+
+                        controlChannel->send("START_SCENARIO\n");
+
+                        // NOTE: no nested run() here—everything will now be handled
+                        //       by the single ioContext->run() below.
+                    } else if (msg.find("END_SCENARIO") != std::string::npos) {
+                        std::cout << "[SERVER] End of scenario received.\n";
+
+                        // stop monitors
+                        if (networkMonitor_) {
+                            networkMonitor_->stop();
+                            networkMonitor_.reset();
+                        }
+                        if (cpuMonitor_) {
+                            cpuMonitor_->stop();
+                            cpuMonitor_.reset();
+                        }
+
+                        // stop traffic server
+                        if (baseServer) {
+                            baseServer->stop();
+                            baseServer.reset();
+                        }
+
+                        // gather & dump metrics
+                        const std::vector<Metric> allMetrics = combineMetrics();
+                        utils::PrettyPrinter::printPivotTable(allMetrics);
+                        writeToCsv(allMetrics);
+                        std::cout << "[SERVER] Metrics written to CSV.\n";
+
+                        cpuCollectors_.clear();
+                        networkCollectors_.clear();
+
+                        // close only control socket
+                        if (controlChannel) {
+                            controlChannel->close();
+                        }
+
+                        // cancel & close the acceptor so no new clients
+                        if (acceptor) {
+                            acceptor->cancel();
+                            acceptor->close();
+                        }
+
+                        // at this point, all sockets/acceptors are closed,
+                        // so ioContext.run() will exit naturally.
+                    } else {
+                        std::cout << "[SERVER] Unknown message: " << msg << "\n";
+                    }
+                }
+            );
+
+            std::cout << "[SERVER] Control channel created.\n";
+            controlChannel->startReadLoop();
+        }
+    );
 
     std::cout << "[SERVER] Accepting connections on port " << CONTROL_PORT << "\n";
-    ioTcpController->run();
-    std::cout << "[SERVER] Acceptor stopped.\n";
-    ioTcpController->stop();
+
+    // 4) Single event loop for all async work
+    ioContext->run();
+
     std::cout << "[SERVER] I/O context stopped.\n";
+
+    // Cleanup
     controlChannel.reset();
-    ioTcpController.reset();
+    ioContext.reset();
 }

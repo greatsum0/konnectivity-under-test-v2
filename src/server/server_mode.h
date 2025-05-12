@@ -36,8 +36,8 @@ private:
 
     std::shared_ptr<INetworkServer> baseServer;
     std::shared_ptr<TcpControlChannel> controlChannel;
-    std::shared_ptr<asio::io_context> ioTraffic = nullptr;
-    std::shared_ptr<asio::io_context> ioTcpController = nullptr;
+    std::shared_ptr<asio::io_context> ioContext = nullptr;
+
     std::vector<Metric> cpuMetrics;
     std::vector<Metric> networkMetrics;
 

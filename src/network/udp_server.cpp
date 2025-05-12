@@ -30,3 +30,10 @@ void UdpServer::receive() {
             }
         });
 }
+
+void UdpServer::stop() {
+    std::error_code ec;
+    socket_.cancel(ec);
+    socket_.close(ec);
+    std::cout << "[UdpServer] Stopped.\n";
+}

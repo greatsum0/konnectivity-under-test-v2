@@ -72,6 +72,7 @@ void ServerMode::writeToCsv(std::vector<Metric> metrics) const {
     std::string timestamp = ts.str();
     std::string filename = context.outputPath + "/"
                            + timestamp + "_"
+                           + context.network.protocol + "_"
                            + clientContext.name + ".csv";
 
     /// write out CSV

@@ -190,6 +190,9 @@ void ClientMode::run() {
     std::cout << "[INFO] Scenario file sent to server\n";
 
     ioContext_->run();
+    controlChannel_.reset();
+    baseClient_.reset();
+    ioContext_.reset();
 
     // stop monitors
     if (networkMonitor_) {
@@ -208,7 +211,4 @@ void ClientMode::run() {
 
     cpuCollectors_.clear();
     networkCollectors_.clear();
-
-    controlChannel_.reset();
-    ioContext_.reset();
 }

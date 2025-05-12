@@ -30,6 +30,7 @@ void TcpControlChannel::assignSocket(asio::ip::tcp::socket socket) {
 
 void TcpControlChannel::startReadLoop() {
     if (!socket_.is_open()) return;
+    auto self = shared_from_this();
     auto buf = std::make_shared<std::vector<char> >(1024);
     socket_.async_read_some(asio::buffer(*buf), [this, buf](std::error_code ec, std::size_t len) {
         if (!ec) {
@@ -37,8 +38,11 @@ void TcpControlChannel::startReadLoop() {
             if (messageCallback_) messageCallback_(msg);
             startReadLoop();
         } else {
-            std::cerr << "[TcpControlChannel] Read error: " << ec.message() << "\n";
-            socket_.close();
+            if (ec == asio::error::eof || ec == asio::error::operation_aborted) {
+                std::cerr << "[TcpControlChannel] Connection closed normally.\n";
+            } else {
+                std::cerr << "[TcpControlChannel] Read error: " << ec.message() << "\n";
+            }
         }
     });
 }

@@ -4,22 +4,25 @@
 #include <client_context.h>
 #include <functional>
 #include <string>
+#include <memory>
 
-class TcpControlChannel {
+class TcpControlChannel : public std::enable_shared_from_this<TcpControlChannel> {
 public:
-    explicit TcpControlChannel(asio::io_context& io_context);
+    explicit TcpControlChannel(asio::io_context &io_context);
 
     // Client-side
-    void connect(const std::string& host, uint16_t port);
+    void connect(const std::string &host, uint16_t port);
 
     // Server-side
     void assignSocket(asio::ip::tcp::socket socket);
 
     void startReadLoop();
-    void send(const std::string& msg);
+
+    void send(const std::string &msg);
+
     void close();
 
-    void setMessageCallback(std::function<void(const std::string&)> cb);
+    void setMessageCallback(std::function<void(const std::string &)> cb);
 
     void sendScenarioFile(const ClientContext &context);
 
@@ -29,5 +32,5 @@ private:
     asio::ip::tcp::resolver resolver_;
     std::string host_;
     std::string portStr_;
-    std::function<void(const std::string&)> messageCallback_;
+    std::function<void(const std::string &)> messageCallback_;
 };

@@ -29,8 +29,12 @@ spec:
             - /app/build/kut --mode server --config /app/config/server_config.yaml
 
           ports:
-            - containerPort: 23456
-
+            - name: traffic-port
+              containerPort: 23456
+              hostPort: 23456
+            - name: ui-port
+              containerPort: 6070
+              hostPort: 6070
           volumeMounts:
             - name: server-data
               mountPath: /measurements/server

@@ -33,7 +33,7 @@ public:
 private:
     ServerContext context;
     ClientContext clientContext;
-
+    bool isReset = false;
     std::shared_ptr<INetworkServer> baseServer;
     std::shared_ptr<TcpControlChannel> controlChannel;
     std::shared_ptr<asio::io_context> ioContext = nullptr;

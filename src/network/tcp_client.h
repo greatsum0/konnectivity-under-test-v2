@@ -3,7 +3,8 @@
 #include "inetwork_client.h"
 #include "client_context.h"
 #include <asio.hpp>
-#pragma once
+#include <string>
+#include <vector>
 
 class TcpClient final : public INetworkClient {
 public:
@@ -14,6 +15,8 @@ public:
     void send(const std::vector<uint8_t> &data) override;
 
     void disconnect() override;
+
+    bool isConnected() const; // check if socket is open
 
 private:
     asio::io_context &io_;

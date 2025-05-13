@@ -41,12 +41,18 @@ void TcpControlChannel::startReadLoop() {
                                     const std::string msg(buf->data(), len);
                                     if (self->messageCallback_) self->messageCallback_(msg);
                                     self->startReadLoop();
-                                } else if (ec == asio::error::eof) {
-                                    std::cerr << "[TcpControlChannel] Remote side closed connection (EOF).\n";
+                                } else if (ec == asio::error::eof || ec == asio::error::connection_reset || len == 0) {
+                                    std::cerr << "[TcpControlChannel] Remote side closed connection.\n";
                                     self->close();
-                                } else if (ec) {
+                                    if (self->disconnectCallback_) {
+                                        self->disconnectCallback_(); // notify owner
+                                    }
+                                } else {
                                     std::cerr << "[TcpControlChannel] Read error: " << ec.message() << "\n";
                                     self->close();
+                                    if (self->disconnectCallback_) {
+                                        self->disconnectCallback_(); // also treat as disconnect
+                                    }
                                 }
                             });
 }
@@ -76,6 +82,9 @@ void TcpControlChannel::doWrite() {
                           } else {
                               std::cerr << "[TcpControlChannel] Send failed: " << ec.message() << "\n";
                               self->close();
+                              if (disconnectCallback_) {
+                                  disconnectCallback_(); // also notify on send failure
+                              }
                           }
                       });
 }
@@ -101,7 +110,15 @@ void TcpControlChannel::setMessageCallback(std::function<void(const std::string 
     messageCallback_ = std::move(cb);
 }
 
+void TcpControlChannel::setDisconnectCallback(std::function<void()> cb) {
+    disconnectCallback_ = std::move(cb);
+}
+
 void TcpControlChannel::sendScenarioFile(const ClientContext &context) {
     const std::string yamlText = YamlParser::toYamlString(context);
     send(yamlText);
+}
+
+bool TcpControlChannel::isOpen() const {
+    return socket_.is_open();
 }

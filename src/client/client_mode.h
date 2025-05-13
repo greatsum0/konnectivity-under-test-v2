@@ -22,10 +22,9 @@ public:
 
     std::unique_ptr<INetworkClient> createNetworkClient(asio::io_context &io) const;
 
-    void startTraffic(const std::shared_ptr<TcpControlChannel> &controlChannel);
+    void startTraffic();
 
     void run();
-
 
     static void startNetworkMonitor(PortTrafficMonitor &monitor,
                                     const std::vector<std::unique_ptr<IMetricCollector> > &network_collectors);

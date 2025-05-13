@@ -11,44 +11,78 @@ void TcpServer::start() {
 }
 
 void TcpServer::startAccept() {
-    auto sock = std::make_shared<asio::ip::tcp::socket>(ioContext_);
-    acceptor_.async_accept(*sock,
-                           [this, sock](const asio::error_code &ec) {
-                               handleAccept(sock, ec);
+    auto newSocket = std::make_shared<asio::ip::tcp::socket>(ioContext_);
+
+    acceptor_.async_accept(*newSocket,
+                           [this, newSocket](const asio::error_code &ec) {
+                               handleAccept(ec, newSocket);
                            });
 }
 
-void TcpServer::handleAccept(std::shared_ptr<asio::ip::tcp::socket> sock,
-                             const asio::error_code &ec) {
+void TcpServer::handleAccept(const std::error_code &ec, std::shared_ptr<asio::ip::tcp::socket> newSocket) {
     if (!ec) {
-        std::cout << "[SERVER] Connection accepted from "
-                << sock->remote_endpoint() << "\n";
-        read(sock);
+        if (!clientConnected_) {
+            socket_ = newSocket;
+            clientConnected_ = true;
+
+            std::cout << "[SERVER] Client connected from "
+                    << socket_->remote_endpoint() << "\n";
+
+            read();
+        } else {
+            std::cout << "[SERVER] Rejecting extra client from "
+                    << newSocket->remote_endpoint() << "\n";
+
+            std::error_code ignoredEc;
+            newSocket->shutdown(asio::ip::tcp::socket::shutdown_both, ignoredEc);
+            newSocket->close(ignoredEc);
+        }
     } else {
         std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
-        ioContext_.stop();
     }
-    //startAccept();
+
+    // always continue accepting for future clients
+    startAccept();
 }
 
-void TcpServer::read(std::shared_ptr<asio::ip::tcp::socket> sock) {
-    sock->async_read_some(
+void TcpServer::read() {
+    if (!socket_ || !socket_->is_open()) return;
+
+    socket_->async_read_some(
         asio::buffer(buffer_),
-        [this, sock](const asio::error_code &ec, std::size_t length) {
-            if (!ec) {
-                // You can process `length` bytes from buffer_ here.
-                read(sock);
+        [this](const asio::error_code &ec, std::size_t length) {
+            if (!ec && length > 0) {
+                std::string msg(buffer_.data(), length);
+                // You can add a callback or processing logic here
+                read(); // continue reading
             } else {
                 std::cout << "[SERVER] Client disconnected: "
                         << ec.message() << "\n";
-                // stop the I/O context so ServerMode::run() can proceed
-                ioContext_.stop();
+
+                std::error_code shutdownEc;
+                socket_->shutdown(asio::ip::tcp::socket::shutdown_both, shutdownEc);
+                socket_->close(shutdownEc);
+                clientConnected_ = false;
             }
         });
 }
 
 void TcpServer::stop() {
     std::error_code ec;
-    acceptor_.cancel(ec);
-    acceptor_.close(ec);
+
+    if (acceptor_.is_open()) {
+        acceptor_.cancel(ec);
+        if (ec) std::cerr << "[SERVER] acceptor cancel failed: " << ec.message() << "\n";
+        acceptor_.close(ec);
+        if (ec) std::cerr << "[SERVER] acceptor close failed: " << ec.message() << "\n";
+    }
+
+    if (socket_ && socket_->is_open()) {
+        socket_->shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+        if (ec) std::cerr << "[SERVER] socket shutdown failed: " << ec.message() << "\n";
+        socket_->close(ec);
+        if (ec) std::cerr << "[SERVER] socket close failed: " << ec.message() << "\n";
+    }
+
+    clientConnected_ = false;
 }

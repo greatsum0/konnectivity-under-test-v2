@@ -3,6 +3,7 @@
 #include "inetwork_server.h"
 #include <asio.hpp>
 #include <memory>
+#include <array>
 
 class TcpServer final : public INetworkServer {
 public:
@@ -15,11 +16,12 @@ public:
 private:
     void startAccept();
 
-    void handleAccept(std::shared_ptr<asio::ip::tcp::socket> sock,
-                      const asio::error_code &ec);
+    void handleAccept(const std::error_code &ec, std::shared_ptr<asio::ip::tcp::socket> newSocket);
 
-    void read(std::shared_ptr<asio::ip::tcp::socket> sock);
+    void read();
 
     asio::ip::tcp::acceptor acceptor_;
     std::array<char, 8192> buffer_{};
+    std::shared_ptr<asio::ip::tcp::socket> socket_; // active client socket
+    bool clientConnected_ = false; // true if a client is connected
 };

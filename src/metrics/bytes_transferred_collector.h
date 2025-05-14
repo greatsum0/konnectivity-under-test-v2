@@ -13,7 +13,9 @@ public:
     void onNetworkSample(
         std::chrono::system_clock::time_point ts,
         uint64_t bytesIn,
-        uint64_t bytesOut
+        uint64_t bytesOut,
+        uint64_t packetsIn,
+        uint64_t packetsOut
     ) override;
 
     void onCpuSample(

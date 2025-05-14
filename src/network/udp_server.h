@@ -16,5 +16,5 @@ private:
 
     asio::ip::udp::socket socket_;
     asio::ip::udp::endpoint remoteEndpoint_;
-    std::array<char, 2048> buffer_{};
+    std::array<char, 17356> buffer_{};
 };

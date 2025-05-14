@@ -21,7 +21,7 @@ private:
     void read();
 
     asio::ip::tcp::acceptor acceptor_;
-    std::array<char, 8192> buffer_{};
+    std::array<char, 17356> buffer_{};
     std::shared_ptr<asio::ip::tcp::socket> socket_; // active client socket
     bool clientConnected_ = false; // true if a client is connected
 };

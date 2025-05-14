@@ -65,6 +65,8 @@ add_executable(kut ${KUT_SOURCES}
         src/config/measurement_config.h
         src/network/tcp_control_channel.cpp
         src/network/tcp_control_channel.h
+        src/metrics/unified_monitor_controller.cpp
+        src/metrics/unified_monitor_controller.h
 )
 
 # Link yaml-cpp

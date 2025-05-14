@@ -90,19 +90,21 @@ void TcpControlChannel::doWrite() {
 }
 
 void TcpControlChannel::close() {
-    if (socket_.is_open()) {
-        std::error_code ec;
-        socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
-        if (ec) {
-            std::cerr << "[TcpControlChannel] Shutdown error: " << ec.message() << "\n";
-        }
+    if (!socket_.is_open()) return;
 
-        socket_.close(ec);
-        if (ec) {
-            std::cerr << "[TcpControlChannel] Close error: " << ec.message() << "\n";
-        } else {
-            std::cout << "[TcpControlChannel] Socket closed cleanly.\n";
-        }
+    std::error_code ec;
+
+    socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+    if (ec && ec != asio::error::not_connected) {
+        std::cerr << "[TcpControlChannel] Shutdown error: " << ec.message() << "\n";
+    }
+
+    ec.clear();
+    socket_.close(ec);
+    if (ec && ec != asio::error::not_connected) {
+        std::cerr << "[TcpControlChannel] Close error: " << ec.message() << "\n";
+    } else {
+        std::cout << "[TcpControlChannel] Socket closed cleanly.\n";
     }
 }
 

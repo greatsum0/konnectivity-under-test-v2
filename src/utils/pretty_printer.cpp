@@ -13,15 +13,19 @@ namespace utils {
         std::map<std::string, std::map<std::string, std::string> > table;
         std::set<std::string> keys;
 
-        for (auto const &m: metrics) {
-            // format timestamp
-            auto tt = std::chrono::system_clock::to_time_t(m.timestamp);
-            std::tm tm = *std::localtime(&tt);
+        for (const auto &m: metrics) {
+            // format timestamp with milliseconds
+            auto tp = m.timestamp;
+            auto ttime = std::chrono::system_clock::to_time_t(tp);
+            auto duration = tp.time_since_epoch();
+            auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration) % 1000;
+
+            std::tm tm = *std::localtime(&ttime);
             std::ostringstream tos;
-            tos << std::put_time(&tm, "%F %T");
+            tos << std::put_time(&tm, "%F %T")
+                    << "." << std::setfill('0') << std::setw(3) << millis.count();
             std::string ts = tos.str();
 
-            // record key and value
             keys.insert(m.key);
             table[ts][m.key] = std::to_string(m.value);
         }
@@ -30,12 +34,13 @@ namespace utils {
         std::string col0 = "Timestamp";
         std::map<std::string, size_t> colWidth;
         colWidth[col0] = col0.size();
-        for (auto const &k: keys) {
+        for (const auto &k: keys) {
             colWidth[k] = k.size();
         }
-        for (auto const &[ts,row]: table) {
+
+        for (const auto &[ts, row]: table) {
             colWidth[col0] = std::max(colWidth[col0], ts.size());
-            for (auto const &k: keys) {
+            for (const auto &k: keys) {
                 auto it = row.find(k);
                 if (it != row.end()) {
                     colWidth[k] = std::max(colWidth[k], it->second.size());
@@ -45,22 +50,22 @@ namespace utils {
 
         // 3) Print header
         std::cout << std::left << std::setw(colWidth[col0]) << col0;
-        for (auto const &k: keys) {
+        for (const auto &k: keys) {
             std::cout << " | " << std::right << std::setw(colWidth[k]) << k;
         }
         std::cout << "\n";
 
         // 4) Separator
         std::cout << std::string(colWidth[col0], '-');
-        for (auto const &k: keys) {
+        for (const auto &k: keys) {
             std::cout << "-+-" << std::string(colWidth[k], '-');
         }
         std::cout << "\n";
 
         // 5) Rows
-        for (auto const &[ts,row]: table) {
+        for (const auto &[ts, row]: table) {
             std::cout << std::left << std::setw(colWidth[col0]) << ts;
-            for (auto const &k: keys) {
+            for (const auto &k: keys) {
                 auto it = row.find(k);
                 std::string cell = (it != row.end() ? it->second : "");
                 std::cout << " | " << std::right << std::setw(colWidth[k]) << cell;
@@ -68,4 +73,4 @@ namespace utils {
             std::cout << "\n";
         }
     }
-} // namespace utils
+}

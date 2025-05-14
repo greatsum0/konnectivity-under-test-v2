@@ -26,17 +26,23 @@ public:
         uint64_t packetsOut = 0;
     };
 
-    using Callback = std::function<void(const AggregateSample&)>;
+    using Callback = std::function<void(const AggregateSample &)>;
 
     PortTrafficMonitor(std::string iface, uint16_t port, double intervalSec);
+
     ~PortTrafficMonitor();
 
     void start(Callback cb);
+
     void stop();
+
+    AggregateSample sample();
 
 private:
     void runPcap();
+
     void runTimer();
+
     static void pcapCallback(u_char *user, const pcap_pkthdr *hdr, const u_char *packet);
 
     std::string iface_;
@@ -48,7 +54,7 @@ private:
     int linkType_ = 0;
 
     std::thread pcapThread_;
-    std::thread timerThread_;
+    //std::thread timerThread_;
     std::atomic<bool> running_{false};
     uint32_t localAddr_{0};
 

@@ -57,7 +57,7 @@ void PortTrafficMonitor::start(Callback cb) {
 
     linkType_ = pcap_datalink(handle_);
     pcapThread_ = std::thread(&PortTrafficMonitor::runPcap, this);
-    timerThread_ = std::thread(&PortTrafficMonitor::runTimer, this);
+    //timerThread_ = std::thread(&PortTrafficMonitor::runTimer, this);
 }
 
 void PortTrafficMonitor::stop() {
@@ -66,7 +66,7 @@ void PortTrafficMonitor::stop() {
 
     if (handle_) pcap_breakloop(handle_);
     if (pcapThread_.joinable()) pcapThread_.join();
-    if (timerThread_.joinable()) timerThread_.join();
+    //if (timerThread_.joinable()) timerThread_.join();
 
     if (handle_) {
         pcap_freecode(&filterProg_);
@@ -151,4 +151,26 @@ void PortTrafficMonitor::runTimer() {
             aggregateCallback_(agg);
         }
     }
+}
+
+PortTrafficMonitor::AggregateSample PortTrafficMonitor::sample() {
+    AggregateSample agg{};
+    agg.timestamp = std::chrono::system_clock::now();
+
+    std::vector<PacketRecord> snapshot; {
+        std::lock_guard<std::mutex> lock(logMutex_);
+        snapshot.swap(packetLog_);
+    }
+
+    for (const auto &pkt: snapshot) {
+        if (pkt.isOut) {
+            agg.bytesOut += pkt.size;
+            agg.packetsOut++;
+        } else {
+            agg.bytesIn += pkt.size;
+            agg.packetsIn++;
+        }
+    }
+
+    return agg;
 }

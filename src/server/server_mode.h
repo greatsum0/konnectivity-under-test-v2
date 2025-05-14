@@ -9,6 +9,7 @@
 #include "port_traffic_monitor.h"
 #include "server_context.h"
 #include "tcp_control_channel.h"
+#include "unified_monitor_controller.h"
 
 class ServerMode {
 public:
@@ -20,29 +21,26 @@ public:
 
     void writeToCsv(std::vector<Metric> metrics) const;
 
-    static void startNetworkMonitor(PortTrafficMonitor &monitor,
-                                    const std::vector<std::unique_ptr<IMetricCollector> > &network_collectors);
-
-    static void startCpuMonitor(CPUUsageMonitor &monitor,
-                                const std::vector<std::unique_ptr<IMetricCollector> > &cpu_collectors);
+    void startAllMonitors(const std::chrono::system_clock::time_point &referenceTime);
 
     std::shared_ptr<asio::io_context> listenTraffic();
 
     void run();
 
 private:
-    ServerContext context;
-    ClientContext clientContext;
+    ServerContext context_;
+    ClientContext clientContext_;
     bool isReset = false;
-    std::shared_ptr<INetworkServer> baseServer;
-    std::shared_ptr<TcpControlChannel> controlChannel;
-    std::shared_ptr<asio::io_context> ioContext = nullptr;
+    std::shared_ptr<INetworkServer> baseServer_;
+    std::shared_ptr<TcpControlChannel> controlChannel_;
+    std::shared_ptr<asio::io_context> ioContext_ = nullptr;
+    std::unique_ptr<UnifiedMonitorController> unifiedMonitorController_;
 
-    std::vector<Metric> cpuMetrics;
-    std::vector<Metric> networkMetrics;
+    std::vector<Metric> cpuMetrics_;
+    std::vector<Metric> networkMetrics_;
 
-    std::unique_ptr<PortTrafficMonitor> networkMonitor_;
-    std::unique_ptr<CPUUsageMonitor> cpuMonitor_;
+    std::shared_ptr<PortTrafficMonitor> networkMonitor_;
+    std::shared_ptr<CPUUsageMonitor> cpuMonitor_;
 
     std::vector<std::unique_ptr<IMetricCollector> > cpuCollectors_;
     std::vector<std::unique_ptr<IMetricCollector> > networkCollectors_;

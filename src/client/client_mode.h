@@ -11,6 +11,7 @@
 #include "metric_store.h"
 #include "port_traffic_monitor.h"
 #include "tcp_control_channel.h"
+#include "unified_monitor_controller.h"
 
 class ClientMode {
 public:
@@ -26,11 +27,7 @@ public:
 
     void run();
 
-    static void startNetworkMonitor(PortTrafficMonitor &monitor,
-                                    const std::vector<std::unique_ptr<IMetricCollector> > &network_collectors);
-
-    static void startCpuMonitor(CPUUsageMonitor &monitor,
-                                const std::vector<std::unique_ptr<IMetricCollector> > &cpu_collectors);
+    void startAllMonitors(const std::chrono::system_clock::time_point &referenceTime);
 
 private:
     ClientContext context_;
@@ -41,9 +38,10 @@ private:
     std::vector<Metric> cpuMetrics_;
     std::vector<Metric> networkMetrics_;
 
-    std::unique_ptr<PortTrafficMonitor> networkMonitor_;
-    std::unique_ptr<CPUUsageMonitor> cpuMonitor_;
+    std::shared_ptr<PortTrafficMonitor> networkMonitor_;
+    std::shared_ptr<CPUUsageMonitor> cpuMonitor_;
 
+    std::unique_ptr<UnifiedMonitorController> unifiedMonitorController_;
     std::vector<std::unique_ptr<IMetricCollector> > cpuCollectors_;
     std::vector<std::unique_ptr<IMetricCollector> > networkCollectors_;
 

@@ -12,6 +12,7 @@
 #include "tcp_client.h"
 #include "udp_client.h"
 #include "traffic_pattern_factory.h"
+#include "unified_monitor_controller.h"
 #include "utils/pretty_printer.h"
 #include "utils/csv_writer.h"
 
@@ -56,28 +57,38 @@ void ClientMode::writeToCsv(std::vector<Metric> metrics) const {
     writer.write(metrics);
 }
 
-void ClientMode::startNetworkMonitor(PortTrafficMonitor &monitor,
-                                     const std::vector<std::unique_ptr<IMetricCollector> > &collectors) {
-    monitor.start(
-        [&](const auto in, const auto out) {
-            for (const auto &c: collectors)
-                c->onNetworkSample(std::chrono::system_clock::now(), in, out);
-        }
+void ClientMode::startAllMonitors(const std::chrono::system_clock::time_point &referenceTime) {
+    networkMonitor_ = std::make_shared<PortTrafficMonitor>(
+        context_.measurement.interface,
+        context_.network.serverPort,
+        context_.measurement.intervalSec
     );
-}
+    networkMonitor_->start(nullptr);
+    networkCollectors_ = MetricCollectorFactory::create(
+        context_.measurement, networkMetrics_
+    );
+    cpuMonitor_ = std::make_shared<CPUUsageMonitor>(
+        context_.measurement.intervalSec
+    );
 
-void ClientMode::startCpuMonitor(CPUUsageMonitor &monitor,
-                                 const std::vector<std::unique_ptr<IMetricCollector> > &collectors) {
-    monitor.start(
-        [&](const std::vector<double> &perCoreUsages,
-            const double totalCore,
-            const double selfCpu,
-            const double selfShareTotal,
-            const double selfShareCap) {
-            const auto now = std::chrono::system_clock::now();
-            for (const auto &c: collectors) {
-                c->onCpuSample(now, totalCore, selfCpu);
-                c->onCpuDetailSample(now, perCoreUsages, selfShareTotal, selfShareCap);
+    cpuCollectors_ = MetricCollectorFactory::create(
+        context_.measurement, cpuMetrics_
+    );
+    unifiedMonitorController_ = std::make_unique<UnifiedMonitorController>(
+        *ioContext_, cpuMonitor_, networkMonitor_, context_.measurement.intervalSec
+    );
+
+    unifiedMonitorController_->start(
+        [this](std::chrono::system_clock::time_point ts,
+               const CPUUsageSnapshot& cpuSnap,
+               const PortTrafficMonitor::AggregateSample& netSnap) {
+            for (const auto& c : networkCollectors_) {
+                c->onNetworkSample(ts, netSnap.bytesIn, netSnap.bytesOut, netSnap.packetsIn, netSnap.packetsOut);
+            }
+
+            for (const auto& c : cpuCollectors_) {
+                c->onCpuSample(ts, cpuSnap.totalSum, cpuSnap.selfCpu);
+                c->onCpuDetailSample(ts, cpuSnap.perCoreUsages, cpuSnap.selfShareVsTotal, cpuSnap.selfShareVsSystemCap);
             }
         }
     );
@@ -98,17 +109,7 @@ void ClientMode::startTraffic() {
     baseClient_->connect();
     std::cout << "[INFO] Connected to " << context_.network.serverAddress << ":" << context_.network.serverPort << "\n";
 
-    networkMonitor_ = std::make_unique<PortTrafficMonitor>(
-        context_.measurement.interface,
-        context_.network.serverPort,
-        context_.measurement.intervalSec
-    );
-    networkCollectors_ = MetricCollectorFactory::create(context_.measurement, networkMetrics_);
-    startNetworkMonitor(*networkMonitor_, networkCollectors_);
-
-    cpuMonitor_ = std::make_unique<CPUUsageMonitor>(context_.measurement.intervalSec);
-    cpuCollectors_ = MetricCollectorFactory::create(context_.measurement, cpuMetrics_);
-    startCpuMonitor(*cpuMonitor_, cpuCollectors_);
+    startAllMonitors(std::chrono::system_clock::now());
 
     pattern_ = TrafficPatternFactory::create(context_.traffic);
 
@@ -152,7 +153,7 @@ void ClientMode::run() {
     controlChannel_->setMessageCallback([this](const std::string &msg) {
         if (msg.find("START_SCENARIO") != std::string::npos) {
             std::cout << "[APP] Server accepted scenario. Starting traffic...\n";
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             startTraffic();
             controlChannel_->close(); // cleanly close control channel
         }
@@ -164,15 +165,16 @@ void ClientMode::run() {
 
     ioContext_->run();
 
-    // Cleanup
+    if (unifiedMonitorController_) {
+        unifiedMonitorController_->stop();
+    }
     if (networkMonitor_) {
-        networkMonitor_->stop();
-        networkMonitor_.reset();
+        networkMonitor_->stop();  // pcap_thread durdurulsun
     }
     if (cpuMonitor_) {
-        cpuMonitor_->stop();
-        cpuMonitor_.reset();
+        cpuMonitor_->stop();      // timer thread durdurulsun
     }
+
 
     const auto allMetrics = combineMetrics();
     utils::PrettyPrinter::printPivotTable(allMetrics);

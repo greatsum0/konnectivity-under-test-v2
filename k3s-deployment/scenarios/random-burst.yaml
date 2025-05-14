@@ -18,7 +18,7 @@ scenario:
       max_burst_duration_ms: 2000 # Maximum burst duration (ms)
       min_burst_interval_ms: 2000 # Minimum burst interval (ms)
       max_burst_interval_ms: 4000 # Maximum burst interval (ms)
-      packet_size: 12500 # Packet size (bytes)
+      packet_size: 15000 # Packet size (bytes)
   metric_collection:
     interval_sec: 1.0  # Metric collection resolution (seconds)
     interface: "eth0"  # Network interface to be used

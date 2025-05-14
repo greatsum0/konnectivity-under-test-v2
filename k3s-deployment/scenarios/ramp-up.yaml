@@ -12,7 +12,7 @@ scenario:
     parameters:
       rate_mbps: 1000    # Target rate for ramp-up traffic. Reaches to 1000 Mbps in 20 seconds. (Mbps)
       ramp_up_time: 20  # Ramp-up duration (seconds)
-      packet_size: 12500 # Packet size (bytes)
+      packet_size: 15000 # Packet size (bytes)
   metric_collection:
     interval_sec: 1.0  # Metric collection resolution (seconds)
     interface: "eth0"  # Network interface to be used

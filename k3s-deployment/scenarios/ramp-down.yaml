@@ -12,7 +12,7 @@ scenario:
     parameters:
       rate_mbps: 1000    # Starting rate for ramp-down traffic. Start with a high rate and decrease it. (Mbps)
       ramp_down_time: 20 # Ramp-down duration (seconds)
-      packet_size: 12500 # Packet size (bytes)
+      packet_size: 15000 # Packet size (bytes)
   metric_collection:
     interval_sec: 1.0  # Metric collection resolution (seconds)
     interface: "eth0"  # Network interface to be used

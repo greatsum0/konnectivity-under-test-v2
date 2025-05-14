@@ -14,7 +14,7 @@ scenario:
       burst_size_mb: 20   # Burst size for burst traffic (MB)
       burst_duration_sec: 2 # Duration of each burst (seconds)
       burst_interval_sec: 4 # Interval between bursts (seconds)
-      packet_size: 12500 # Packet size (bytes)
+      packet_size: 15000 # Packet size (bytes)
   metric_collection:
     interval_sec: 1.0  # Metric collection resolution (seconds)
     interface: "eth0"  # Network interface to be used

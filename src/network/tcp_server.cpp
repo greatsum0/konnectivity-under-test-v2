@@ -60,8 +60,19 @@ void TcpServer::read() {
                         << ec.message() << "\n";
 
                 std::error_code shutdownEc;
-                socket_->shutdown(asio::ip::tcp::socket::shutdown_both, shutdownEc);
-                socket_->close(shutdownEc);
+                if (socket_->is_open()) {
+                    socket_->shutdown(asio::ip::tcp::socket::shutdown_both, shutdownEc);
+                    if (shutdownEc && shutdownEc != asio::error::not_connected) {
+                        std::cerr << "[SERVER] shutdown error: " << shutdownEc.message() << "\n";
+                    }
+
+                    shutdownEc.clear();
+                    socket_->close(shutdownEc);
+                    if (shutdownEc && shutdownEc != asio::error::not_connected) {
+                        std::cerr << "[SERVER] close error: " << shutdownEc.message() << "\n";
+                    }
+                }
+
                 clientConnected_ = false;
             }
         });
@@ -79,10 +90,17 @@ void TcpServer::stop() {
 
     if (socket_ && socket_->is_open()) {
         socket_->shutdown(asio::ip::tcp::socket::shutdown_both, ec);
-        if (ec) std::cerr << "[SERVER] socket shutdown failed: " << ec.message() << "\n";
+        if (ec && ec != asio::error::not_connected) {
+            std::cerr << "[SERVER] socket shutdown failed: " << ec.message() << "\n";
+        }
+
+        ec.clear();
         socket_->close(ec);
-        if (ec) std::cerr << "[SERVER] socket close failed: " << ec.message() << "\n";
+        if (ec && ec != asio::error::not_connected) {
+            std::cerr << "[SERVER] socket close failed: " << ec.message() << "\n";
+        }
     }
+
 
     clientConnected_ = false;
 }

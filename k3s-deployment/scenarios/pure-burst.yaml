@@ -7,13 +7,13 @@ scenario:
     server_port: 23456
   traffic_pattern:
     type: "pure_burst"  # This section specifies the traffic pattern type (constant, burst, random, etc.)
-    duration_sec: 16   # Traffic duration (seconds)
+    duration_sec: 60  # Traffic duration (seconds)
     interval_sec: 1.0  # Traffic sending interval (seconds)
     parameters:
       burst_size_mb: 12.5   # Burst size for burst traffic (MB)
       burst_duration_sec: 2 # Duration of each burst (seconds)
       burst_interval_sec: 6 # Interval between bursts (seconds)
-      packet_size: 15000 # Packet size (bytes)
+      packet_size: 16332 # Packet size (bytes)
   metric_collection:
     interval_sec: 1.0  # Metric collection resolution (seconds)
     interface: "eth0"  # Network interface to be used

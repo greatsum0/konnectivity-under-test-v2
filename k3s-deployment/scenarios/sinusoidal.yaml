@@ -7,13 +7,13 @@ scenario:
     server_port: 23456
   traffic_pattern:
     type: "sinusoidal"  # This section specifies the traffic pattern type (constant, burst, random, etc.)
-    duration_sec: 20  # Traffic duration (seconds)
+    duration_sec: 60  # Traffic duration (seconds)
     interval_sec: 1.0  # Traffic sending interval (seconds)
     parameters:
       rate_mbps: 80    # Mean rate for sinusoidal traffic (Mbps)
       amplitude: 80      # Amplitude for sinusoidal traffic (Mbps)
       frequency: 0.05   # Frequency for sinusoidal traffic 1 / duration (Hz)
-      packet_size: 15000 # Packet size (bytes)
+      packet_size: 16332 # Packet size (bytes)
   metric_collection:
     interval_sec: 1.0  # Metric collection resolution (seconds)
     interface: "eth0"  # Network interface to be used

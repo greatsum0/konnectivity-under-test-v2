@@ -130,6 +130,7 @@ void ClientMode::startTraffic() {
         asio::post(*ioContext_, [this]() {
             if (controlChannel_ && controlChannel_->isOpen()) {
                 controlChannel_->send("END_SCENARIO");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             }
 
             if (baseClient_) {
@@ -146,7 +147,7 @@ void ClientMode::startTraffic() {
 
 void ClientMode::run() {
     ioContext_ = std::make_shared<asio::io_context>();
-    asio::executor_work_guard<asio::io_context::executor_type> workGuard = asio::make_work_guard(*ioContext_);
+    auto workGuard = asio::make_work_guard(*ioContext_);
 
     // start N threads to run the io_context e.g. number of cores
     const unsigned int threadCount = std::thread::hardware_concurrency();
@@ -195,5 +196,7 @@ void ClientMode::run() {
     networkCollectors_.clear();
     controlChannel_.reset();
     baseClient_.reset();
+
+    workGuard.reset(); // clean up the work guard
     ioContext_.reset();
 }

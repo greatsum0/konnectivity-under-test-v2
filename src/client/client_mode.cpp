@@ -80,13 +80,13 @@ void ClientMode::startAllMonitors(const std::chrono::system_clock::time_point &r
 
     unifiedMonitorController_->start(
         [this](std::chrono::system_clock::time_point ts,
-               const CPUUsageSnapshot& cpuSnap,
-               const PortTrafficMonitor::AggregateSample& netSnap) {
-            for (const auto& c : networkCollectors_) {
+               const CPUUsageSnapshot &cpuSnap,
+               const PortTrafficMonitor::AggregateSample &netSnap) {
+            for (const auto &c: networkCollectors_) {
                 c->onNetworkSample(ts, netSnap.bytesIn, netSnap.bytesOut, netSnap.packetsIn, netSnap.packetsOut);
             }
 
-            for (const auto& c : cpuCollectors_) {
+            for (const auto &c: cpuCollectors_) {
                 c->onCpuSample(ts, cpuSnap.totalSum, cpuSnap.selfCpu);
                 c->onCpuDetailSample(ts, cpuSnap.perCoreUsages, cpuSnap.selfShareVsTotal, cpuSnap.selfShareVsSystemCap);
             }
@@ -146,6 +146,18 @@ void ClientMode::startTraffic() {
 
 void ClientMode::run() {
     ioContext_ = std::make_shared<asio::io_context>();
+    asio::executor_work_guard<asio::io_context::executor_type> workGuard = asio::make_work_guard(*ioContext_);
+
+    // start N threads to run the io_context e.g. number of cores
+    const unsigned int threadCount = std::thread::hardware_concurrency();
+    std::vector<std::thread> threads;
+
+    threads.reserve(threadCount);
+    for (unsigned int i = 0; i < threadCount; ++i) {
+        threads.emplace_back([this]() {
+            ioContext_->run();
+        });
+    }
 
     controlChannel_ = std::make_shared<TcpControlChannel>(*ioContext_);
     controlChannel_->connect(context_.network.serverAddress, CONTROL_PORT);
@@ -163,18 +175,16 @@ void ClientMode::run() {
     controlChannel_->sendScenarioFile(context_);
     std::cout << "[INFO] Scenario file sent to server\n";
 
-    ioContext_->run();
-
-    if (unifiedMonitorController_) {
-        unifiedMonitorController_->stop();
-    }
-    if (networkMonitor_) {
-        networkMonitor_->stop();  // pcap_thread durdurulsun
-    }
-    if (cpuMonitor_) {
-        cpuMonitor_->stop();      // timer thread durdurulsun
+    // Main thread waits for the control channel to finish
+    for (auto &t: threads) {
+        if (t.joinable()) {
+            t.join();
+        }
     }
 
+    if (unifiedMonitorController_) unifiedMonitorController_->stop();
+    if (networkMonitor_) networkMonitor_->stop();
+    if (cpuMonitor_) cpuMonitor_->stop();
 
     const auto allMetrics = combineMetrics();
     utils::PrettyPrinter::printPivotTable(allMetrics);

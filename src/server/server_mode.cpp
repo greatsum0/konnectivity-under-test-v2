@@ -8,6 +8,10 @@
 #include <sstream>
 #include <iomanip>
 #include <yaml_parser.h>
+#include <thread>
+#include <vector>
+#include <cerrno>
+#include <asio/steady_timer.hpp>
 
 #include "cpu_usage_monitor.h"
 #include "metric_collector_factory.h"
@@ -123,82 +127,74 @@ void ServerMode::run() {
         isReset = false;
         ioContext_ = std::make_shared<asio::io_context>();
 
+        // — create the acceptor —
         auto acceptor = std::make_shared<asio::ip::tcp::acceptor>(
             *ioContext_,
             asio::ip::tcp::endpoint(asio::ip::tcp::v4(), CONTROL_PORT)
         );
 
-        std::function<void()> startAccept;
-
-        startAccept = [this, acceptor, &startAccept]() {
+        // — recursive accept loop via shared_ptr to avoid dangling refs —
+        auto doAccept = std::make_shared<std::function<void()> >();
+        *doAccept = [this, acceptor, doAccept]() {
             acceptor->async_accept(
-                [this, acceptor, &startAccept](const std::error_code ec, asio::ip::tcp::socket socket) {
+                [this, acceptor, doAccept](const std::error_code ec,
+                                           asio::ip::tcp::socket socket) {
                     if (ec) {
-                        std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
-                        return;
+                        // suppress normal shutdown errors
+                        if (ec != asio::error::operation_aborted && ec.value() != EBADF) {
+                            std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
+                        }
+                        return; // stop re-arming on error
                     }
 
+                    // if already have a client, reject extras
                     if (controlChannel_ && controlChannel_->isOpen()) {
                         std::cerr << "[SERVER] Rejecting new client, already connected.\n";
                         std::error_code ignored;
                         socket.shutdown(asio::ip::tcp::socket::shutdown_both, ignored);
                         socket.close(ignored);
-                        startAccept();
+                        (*doAccept)();
                         return;
                     }
 
+                    // — happy path: new control channel —
                     std::cout << "[SERVER] Client connected.\n";
-
                     controlChannel_ = std::make_shared<TcpControlChannel>(*ioContext_);
                     controlChannel_->assignSocket(std::move(socket));
 
-                    controlChannel_->setDisconnectCallback([this]() {
+                    controlChannel_->setDisconnectCallback([this, acceptor]() {
                         std::cerr << "[SERVER] Control channel disconnected unexpectedly.\n";
                         isReset = true;
+                        acceptor->close(); // tear down acceptor
                         ioContext_->stop();
                     });
 
                     controlChannel_->setMessageCallback(
-                        [this](const std::string &msg) {
+                        [this, acceptor, doAccept](const std::string &msg) {
                             if (msg.find("scenario:") != std::string::npos) {
-                                std::cout << "[SERVER] Scenario received, sending START_SCENARIO\n";
                                 clientContext_ = YamlParser::parseClientContextFromString(msg);
-
                                 startAllMonitors(std::chrono::system_clock::now());
-
                                 baseServer_ = createNetworkServer(*ioContext_);
                                 baseServer_->start();
                                 controlChannel_->send("START_SCENARIO\n");
                             } else if (msg.find("END_SCENARIO") != std::string::npos) {
-                                std::cout << "[SERVER] End of scenario received.\n";
+                                // stop accepting further connections
+                                acceptor->cancel();
+                                acceptor->close();
 
-                                if (unifiedMonitorController_) {
-                                    unifiedMonitorController_->stop();
-                                    unifiedMonitorController_.reset();
-                                }
+                                // stop all monitors & servers
+                                if (unifiedMonitorController_) unifiedMonitorController_->stop();
+                                if (networkMonitor_) networkMonitor_->stop();
+                                if (cpuMonitor_) cpuMonitor_->stop();
+                                if (baseServer_) baseServer_->stop();
 
-                                if (networkMonitor_) {
-                                    networkMonitor_->stop();
-                                    networkMonitor_.reset();
-                                }
-
-                                if (cpuMonitor_) {
-                                    cpuMonitor_->stop();
-                                    cpuMonitor_.reset();
-                                }
-
-                                if (baseServer_) {
-                                    baseServer_->stop();
-                                    baseServer_.reset();
-                                }
-
-                                const std::vector<Metric> allMetrics = combineMetrics();
+                                // collect + output metrics
+                                const auto allMetrics = combineMetrics();
                                 utils::PrettyPrinter::printPivotTable(allMetrics);
                                 writeToCsv(allMetrics);
 
                                 cpuCollectors_.clear();
                                 networkCollectors_.clear();
-                                std::cout << "[SERVER] Metrics written to CSV.\n";
 
                                 isReset = true;
                                 ioContext_->stop();
@@ -208,19 +204,45 @@ void ServerMode::run() {
                         }
                     );
 
-                    std::cout << "[SERVER] Control channel created.\n";
                     controlChannel_->startReadLoop();
+                    std::cout << "[SERVER] Control channel created.\n";
 
-                    startAccept(); // continue accepting new connections
+                    // arm next accept
+                    (*doAccept)();
                 }
             );
         };
 
+        // kick off first accept
+        (*doAccept)();
+
+        // ——— Multi-threaded io_context run ———
+
+        // 1) keep context alive even if no immediate work
+        auto workGuard = asio::make_work_guard(*ioContext_);
+
+        // 2) spawn pool of (hardware) threads
+        unsigned int threadCount = std::thread::hardware_concurrency();
+        if (threadCount == 0) threadCount = 1;
+        std::vector<std::thread> pool;
+        pool.reserve(threadCount - 1);
+
+        for (unsigned int i = 1; i < threadCount; ++i) {
+            pool.emplace_back([io = ioContext_]() {
+                io->run();
+            });
+        }
+
+        // 3) run one in main thread
         std::cout << "[SERVER] Accepting connections on port " << CONTROL_PORT << "\n";
-        startAccept(); // first accept
-        ioContext_->run(); // blocks until stopped
+        ioContext_->run();
         std::cout << "[SERVER] I/O context stopped.\n";
 
+        // 4) teardown pool
+        workGuard.reset();
+        for (auto &t: pool) if (t.joinable()) t.join();
+
+        // — cleanup after reset —
         if (isReset) {
             if (controlChannel_) {
                 controlChannel_->close();

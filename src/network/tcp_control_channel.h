@@ -5,7 +5,6 @@
 #include <client_context.h>
 #include <functional>
 #include <string>
-#include <memory>
 #include <deque>
 #include <iostream>   // for logging macros
 

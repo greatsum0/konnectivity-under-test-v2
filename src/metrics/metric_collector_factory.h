@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <memory>
 #include "metric_store.h"
 #include "imetric_collector.h"
 #include "measurement_config.h"

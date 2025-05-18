@@ -2,7 +2,6 @@
 
 #include "abstract_burst_pattern.h"
 #include <cstddef>
-#include <chrono>
 
 /// Steady mean rate plus periodic fixed-size bursts.
 class BurstTrafficPattern : public AbstractBurstPattern {

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "burst_traffic_pattern.h"
-#include <cstddef>
 
 /// Zero mean rate, only periodic bursts.
 class PureBurstTrafficPattern final : public BurstTrafficPattern {

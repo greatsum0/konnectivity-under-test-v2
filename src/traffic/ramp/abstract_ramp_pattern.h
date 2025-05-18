@@ -2,7 +2,7 @@
 #pragma once
 
 #include "itraffic_pattern.h"
-#include <chrono>
+
 
 class AbstractRampPattern : public ITrafficPattern {
 public:

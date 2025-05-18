@@ -3,9 +3,6 @@
 #include "abstract_burst_pattern.h"
 #include <random>
 #include <cstddef>
-#include <chrono>
-#include <vector>
-#include <cstdint>
 
 /// Random bursts on top of a base rate.
 class RandomBurstTrafficPattern final : public AbstractBurstPattern {

@@ -2,7 +2,6 @@
 
 #include "inetwork_server.h"
 #include <asio.hpp>
-#include <memory>
 #include <array>
 #define SERVER_LOG_INFO(msg) \
 LOG_INFO("[TRAFFIC] " << msg)

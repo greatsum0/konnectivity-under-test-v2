@@ -1,6 +1,5 @@
 #include "burst_traffic_pattern.h"
 #include <cmath>
-#include <algorithm>
 
 BurstTrafficPattern::BurstTrafficPattern(const double meanRateMbps,
                                          const double burstSizeMB,

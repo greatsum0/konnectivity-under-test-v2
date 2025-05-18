@@ -2,8 +2,6 @@
 #pragma once
 
 #include <vector>
-#include <string>
-#include <memory>
 #include <thread>
 #include <asio/io_context.hpp>
 #include <client_context.h>
@@ -14,9 +12,7 @@
 #include <port_traffic_monitor.h>
 #include <unified_monitor_controller.h>
 #include "tcp_control_channel.h"
-#include "metric_collector_factory.h"
 #include "utils/csv_writer.h"
-#include "utils/pretty_printer.h"
 
 #define SESSION_LOG_INFO(msg) \
 LOG_INFO("[SESSION] " << msg)

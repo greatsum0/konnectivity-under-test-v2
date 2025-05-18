@@ -5,7 +5,6 @@
 #include <asio.hpp>
 #include <chrono>
 #include <functional>
-#include <memory>
 
 class UnifiedMonitorController {
 public:

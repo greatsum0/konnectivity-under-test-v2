@@ -1,9 +1,6 @@
 #pragma once
 
 #include "itraffic_pattern.h"
-#include <vector>
-#include <cstdint>
-#include <chrono>
 
 class ConstantTrafficPattern final : public ITrafficPattern {
 public:

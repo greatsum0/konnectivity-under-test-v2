@@ -184,9 +184,7 @@ void ServerMode::run() {
 
 
                                 // 3) now stop all monitors
-                                if (unifiedMonitorController_) unifiedMonitorController_->stop();
-                                if (networkMonitor_) networkMonitor_->stop();
-                                if (cpuMonitor_) cpuMonitor_->stop();
+                                stopAllMonitors();
 
                                 // 4) collect + output metrics
                                 const auto allMetrics = combineMetrics();

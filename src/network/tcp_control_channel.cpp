@@ -1,8 +1,7 @@
 #include "tcp_control_channel.h"
-
-#include <client_context.h>
 #include <yaml_parser.h>
-#include <iostream>
+#include <asio/connect.hpp>
+#include <asio/write.hpp>
 
 TcpControlChannel::TcpControlChannel(asio::io_context &io_context)
     : io_(io_context),
@@ -11,21 +10,21 @@ TcpControlChannel::TcpControlChannel(asio::io_context &io_context)
 }
 
 void TcpControlChannel::connect(const std::string &host, uint16_t port) {
+    host_ = host;
+    port_ = port;
     try {
-        host_ = host;
-        portStr_ = std::to_string(port);
-        const auto endpoints = resolver_.resolve(host_, portStr_);
+        auto endpoints = resolver_.resolve(host_, std::to_string(port_));
         asio::connect(socket_, endpoints);
-        std::cout << "[INFO] TCP connected to " << host << ":" << port << "\n";
+        LOG_INFO("TcpControlChannel connected to " << host_ << ":" << port_);
     } catch (const std::system_error &e) {
-        std::cerr << "[ERROR] connect() failed: " << e.what() << "\n";
+        LOG_ERROR("connect to " << host_ << ":" << port_ << " failed: " << e.what());
         throw;
     }
 }
 
-void TcpControlChannel::assignSocket(asio::ip::tcp::socket socket) {
-    socket_ = std::move(socket);
-    std::cout << "[TcpControlChannel] Socket assigned from accept().\n";
+void TcpControlChannel::assignSocket(asio::ip::tcp::socket sock) {
+    socket_ = std::move(sock);
+    LOG_INFO("TcpControlChannel socket assigned from accept()");
 }
 
 void TcpControlChannel::startReadLoop() {
@@ -33,79 +32,76 @@ void TcpControlChannel::startReadLoop() {
     auto self = shared_from_this();
     auto buf = std::make_shared<std::vector<char> >(1024);
 
-    socket_.async_read_some(asio::buffer(*buf),
-                            [self, buf](const std::error_code ec, const std::size_t len) {
-                                if (!self->socket_.is_open()) return;
+    socket_.async_read_some(
+        asio::buffer(*buf),
+        [self, buf](const std::error_code &ec, std::size_t len) {
+            if (!self->socket_.is_open()) return;
 
-                                if (!ec && len > 0) {
-                                    const std::string msg(buf->data(), len);
-                                    if (self->messageCallback_) self->messageCallback_(msg);
-                                    self->startReadLoop();
-                                } else if (ec == asio::error::eof || ec == asio::error::connection_reset || len == 0) {
-                                    std::cerr << "[TcpControlChannel] Remote side closed connection.\n";
-                                    self->close();
-                                    if (self->disconnectCallback_) {
-                                        self->disconnectCallback_(); // notify owner
-                                    }
-                                } else {
-                                    std::cerr << "[TcpControlChannel] Read error: " << ec.message() << "\n";
-                                    self->close();
-                                    if (self->disconnectCallback_) {
-                                        self->disconnectCallback_(); // also treat as disconnect
-                                    }
-                                }
-                            });
+            if (!ec && len > 0) {
+                std::string msg(buf->data(), len);
+                if (self->messageCallback_)
+                    self->messageCallback_(msg);
+                self->startReadLoop();
+            } else {
+                LOG_WARN("Read error/EOF: " << ec.message());
+                self->close();
+                if (self->disconnectCallback_)
+                    self->disconnectCallback_();
+            }
+        }
+    );
 }
 
 void TcpControlChannel::send(const std::string &msg) {
     if (!socket_.is_open()) return;
 
-    const bool writeIdle = writeQueue_.empty();
+    bool wasIdle = writeQueue_.empty();
     writeQueue_.push_back(msg);
-
-    if (writeIdle) {
+    if (wasIdle)
         doWrite();
-    }
 }
 
 void TcpControlChannel::doWrite() {
     if (!socket_.is_open() || writeQueue_.empty()) return;
-
     auto self = shared_from_this();
-    asio::async_write(socket_, asio::buffer(writeQueue_.front()),
-                      [this, self](const std::error_code ec, std::size_t /*length*/) {
-                          if (!ec) {
-                              writeQueue_.pop_front();
-                              if (!writeQueue_.empty()) {
-                                  doWrite();
-                              }
-                          } else {
-                              std::cerr << "[TcpControlChannel] Send failed: " << ec.message() << "\n";
-                              self->close();
-                              if (disconnectCallback_) {
-                                  disconnectCallback_(); // also notify on send failure
-                              }
-                          }
-                      });
+    const auto &front = writeQueue_.front();
+
+    asio::async_write(
+        socket_, asio::buffer(front),
+        [self](const std::error_code &ec, std::size_t /*bytes*/) {
+            if (!ec) {
+                self->writeQueue_.pop_front();
+                if (!self->writeQueue_.empty())
+                    self->doWrite();
+            } else {
+                LOG_ERROR("Send failed: " << ec.message());
+                self->close();
+                if (self->disconnectCallback_)
+                    self->disconnectCallback_();
+            }
+        }
+    );
 }
 
 void TcpControlChannel::close() {
     if (!socket_.is_open()) return;
 
     std::error_code ec;
-
     socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
     if (ec && ec != asio::error::not_connected) {
-        std::cerr << "[TcpControlChannel] Shutdown error: " << ec.message() << "\n";
+        LOG_ERROR("shutdown error: " << ec.message());
     }
 
-    ec.clear();
     socket_.close(ec);
     if (ec && ec != asio::error::not_connected) {
-        std::cerr << "[TcpControlChannel] Close error: " << ec.message() << "\n";
+        LOG_ERROR("close error: " << ec.message());
     } else {
-        std::cout << "[TcpControlChannel] Socket closed cleanly.\n";
+        LOG_INFO("Socket closed cleanly");
     }
+}
+
+bool TcpControlChannel::isOpen() const {
+    return socket_.is_open();
 }
 
 void TcpControlChannel::setMessageCallback(std::function<void(const std::string &)> cb) {
@@ -117,10 +113,6 @@ void TcpControlChannel::setDisconnectCallback(std::function<void()> cb) {
 }
 
 void TcpControlChannel::sendScenarioFile(const ClientContext &context) {
-    const std::string yamlText = YamlParser::toYamlString(context);
-    send(yamlText);
-}
-
-bool TcpControlChannel::isOpen() const {
-    return socket_.is_open();
+    auto yaml = YamlParser::toYamlString(context);
+    send(yaml);
 }

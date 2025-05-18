@@ -17,47 +17,45 @@
 #include "utils/csv_writer.h"
 
 #define CONTROL_PORT 6070
+using namespace std::chrono;
 
 ClientMode::ClientMode(ClientContext context)
     : context_(std::move(context)) {
 }
 
 std::vector<Metric> ClientMode::combineMetrics() {
-    std::vector<Metric> allMetrics;
-    allMetrics.reserve(networkMetrics_.size() + cpuMetrics_.size());
+    std::vector<Metric> all;
+    all.reserve(networkMetrics_.size() + cpuMetrics_.size());
 
-    allMetrics.insert(allMetrics.end(),
-                      std::make_move_iterator(networkMetrics_.begin()),
-                      std::make_move_iterator(networkMetrics_.end()));
+    // move‐append network then CPU
+    std::ranges::move(networkMetrics_, std::back_inserter(all));
     networkMetrics_.clear();
 
-    allMetrics.insert(allMetrics.end(),
-                      std::make_move_iterator(cpuMetrics_.begin()),
-                      std::make_move_iterator(cpuMetrics_.end()));
+    std::ranges::move(cpuMetrics_, std::back_inserter(all));
     cpuMetrics_.clear();
 
-    return allMetrics;
+    return all;
 }
 
-void ClientMode::writeToCsv(std::vector<Metric> metrics) const {
+void ClientMode::writeToCsv(const std::vector<Metric> &metrics) const {
+    // ensure output dir exists
     std::filesystem::create_directories(context_.outputPath);
 
-    auto now = std::chrono::system_clock::now();
-    auto now_c = std::chrono::system_clock::to_time_t(now);
-    std::tm tm = *std::localtime(&now_c);
-    std::ostringstream ts;
-    ts << std::put_time(&tm, "%Y%m%d_%H%M%S");
+    auto now = system_clock::now();
+    const auto ts = std::format("{:%Y%m%d_%H%M%S}", now);
+    const auto filename = context_.outputPath + "/"
+                          + ts + "_"
+                          + context_.network.protocol + "_"
+                          + context_.name
+                          + ".csv";
 
-    std::string filename = context_.outputPath + "/" +
-                           ts.str() + "_" +
-                           context_.network.protocol + "_" +
-                           context_.name + ".csv";
-
-    utils::PivotCSVWriter writer(filename);
+    const utils::PivotCSVWriter writer(filename);
     writer.write(metrics);
+    LOG_INFO("Metrics written to " << filename);
 }
 
-void ClientMode::startAllMonitors(const std::chrono::system_clock::time_point &referenceTime) {
+void ClientMode::startAllMonitors() {
+    // network
     networkMonitor_ = std::make_shared<PortTrafficMonitor>(
         context_.measurement.interface,
         context_.network.serverPort,
@@ -65,33 +63,51 @@ void ClientMode::startAllMonitors(const std::chrono::system_clock::time_point &r
     );
     networkMonitor_->start(nullptr);
     networkCollectors_ = MetricCollectorFactory::create(
-        context_.measurement, networkMetrics_
-    );
+        context_.measurement, networkMetrics_);
+
+    // cpu
     cpuMonitor_ = std::make_shared<CPUUsageMonitor>(
         context_.measurement.intervalSec
     );
 
     cpuCollectors_ = MetricCollectorFactory::create(
-        context_.measurement, cpuMetrics_
-    );
+        context_.measurement, cpuMetrics_);
+
+    // unified controller
     unifiedMonitorController_ = std::make_unique<UnifiedMonitorController>(
         *ioContext_, cpuMonitor_, networkMonitor_, context_.measurement.intervalSec
     );
 
     unifiedMonitorController_->start(
-        [this](std::chrono::system_clock::time_point ts,
+        [this](system_clock::time_point ts,
                const CPUUsageSnapshot &cpuSnap,
                const PortTrafficMonitor::AggregateSample &netSnap) {
             for (const auto &c: networkCollectors_) {
-                c->onNetworkSample(ts, netSnap.bytesIn, netSnap.bytesOut, netSnap.packetsIn, netSnap.packetsOut);
+                c->onNetworkSample(
+                    ts,
+                    netSnap.bytesIn, netSnap.bytesOut,
+                    netSnap.packetsIn, netSnap.packetsOut
+                );
             }
-
-            for (const auto &c: cpuCollectors_) {
+            for (auto &c: cpuCollectors_) {
                 c->onCpuSample(ts, cpuSnap.totalSum, cpuSnap.selfCpu);
-                c->onCpuDetailSample(ts, cpuSnap.perCoreUsages, cpuSnap.selfShareVsTotal, cpuSnap.selfShareVsSystemCap);
+                c->onCpuDetailSample(
+                    ts,
+                    cpuSnap.perCoreUsages,
+                    cpuSnap.selfShareVsTotal,
+                    cpuSnap.selfShareVsSystemCap
+                );
             }
         }
     );
+    LOG_INFO("Monitors started");
+}
+
+void ClientMode::stopAllMonitors() const {
+    if (unifiedMonitorController_) unifiedMonitorController_->stop();
+    if (networkMonitor_) networkMonitor_->stop();
+    if (cpuMonitor_) cpuMonitor_->stop();
+    LOG_INFO("Monitors stopped");
 }
 
 std::unique_ptr<INetworkClient> ClientMode::createNetworkClient(asio::io_context &io) const {
@@ -107,16 +123,16 @@ std::unique_ptr<INetworkClient> ClientMode::createNetworkClient(asio::io_context
 void ClientMode::startTraffic() {
     baseClient_ = createNetworkClient(*ioContext_);
     baseClient_->connect();
-    std::cout << "[INFO] Connected to " << context_.network.serverAddress << ":" << context_.network.serverPort << "\n";
+    LOG_INFO("Connected to " << context_.network.serverAddress << ":" << context_.network.serverPort);
 
-    startAllMonitors(std::chrono::system_clock::now());
+    startAllMonitors();
 
     pattern_ = TrafficPatternFactory::create(context_.traffic);
 
     TrafficScheduler trafficSched(*ioContext_, *baseClient_, context_, *pattern_);
     trafficSched.start();
 
-    std::cout << "[INFO] Traffic scheduler started\n";
+    LOG_INFO("Traffic scheduler started");
 
     const auto exitTimer = std::make_shared<asio::steady_timer>(*ioContext_);
     exitTimer->expires_after(
@@ -126,7 +142,7 @@ void ClientMode::startTraffic() {
     );
 
     exitTimer->async_wait([this](const asio::error_code &) {
-        std::cout << "[INFO] Duration elapsed, posting shutdown steps\n";
+        LOG_INFO("Duration elapsed, posting shutdown steps");
         asio::post(*ioContext_, [this]() {
             if (controlChannel_ && controlChannel_->isOpen()) {
                 controlChannel_->send("END_SCENARIO");
@@ -141,7 +157,7 @@ void ClientMode::startTraffic() {
         });
     });
 
-    std::cout << "[INFO] Running I/O context...\n";
+    LOG_INFO("Running I/O context...");
     ioContext_->run();
 }
 
@@ -165,7 +181,7 @@ void ClientMode::run() {
 
     controlChannel_->setMessageCallback([this](const std::string &msg) {
         if (msg.find("START_SCENARIO") != std::string::npos) {
-            std::cout << "[APP] Server accepted scenario. Starting traffic...\n";
+            LOG_INFO("Server accepted scenario. Starting traffic...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             startTraffic();
             controlChannel_->close(); // cleanly close control channel
@@ -174,7 +190,7 @@ void ClientMode::run() {
 
     controlChannel_->startReadLoop();
     controlChannel_->sendScenarioFile(context_);
-    std::cout << "[INFO] Scenario file sent to server\n";
+    LOG_INFO("Scenario file sent to server");
 
     // Main thread waits for the control channel to finish
     for (auto &t: threads) {
@@ -183,14 +199,12 @@ void ClientMode::run() {
         }
     }
 
-    if (unifiedMonitorController_) unifiedMonitorController_->stop();
-    if (networkMonitor_) networkMonitor_->stop();
-    if (cpuMonitor_) cpuMonitor_->stop();
+    stopAllMonitors();
 
     const auto allMetrics = combineMetrics();
     utils::PrettyPrinter::printPivotTable(allMetrics);
     writeToCsv(allMetrics);
-    std::cout << "[CLIENT] Metrics written to CSV.\n";
+    LOG_INFO("Metrics written to CSV.");
 
     cpuCollectors_.clear();
     networkCollectors_.clear();

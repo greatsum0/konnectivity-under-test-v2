@@ -19,7 +19,7 @@ public:
 
     std::vector<Metric> combineMetrics();
 
-    void writeToCsv(std::vector<Metric> metrics) const;
+    void writeToCsv(const std::vector<Metric> &metrics) const;
 
     std::unique_ptr<INetworkClient> createNetworkClient(asio::io_context &io) const;
 
@@ -27,7 +27,9 @@ public:
 
     void run();
 
-    void startAllMonitors(const std::chrono::system_clock::time_point &referenceTime);
+    void startAllMonitors();
+
+    void stopAllMonitors() const;
 
 private:
     ClientContext context_;

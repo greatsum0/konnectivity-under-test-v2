@@ -6,6 +6,7 @@ metadata:
 spec:
   template:
     spec:
+      hostNetwork: true
       nodeSelector:
         kubernetes.io/hostname: raspberrypi-a
       containers:

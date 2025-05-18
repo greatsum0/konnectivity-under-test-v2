@@ -5,6 +5,7 @@ scenario:
     protocol: "tcp"
     server_address: "kut-server"
     server_port: 23456
+    interface: "wlan0"  # Network interface to be used
   traffic_pattern:
     type: "sinusoidal"  # This section specifies the traffic pattern type (constant, burst, random, etc.)
     duration_sec: 60  # Traffic duration (seconds)
@@ -16,7 +17,6 @@ scenario:
       packet_size: 16332 # Packet size (bytes)
   metric_collection:
     interval_sec: 1.0  # Metric collection resolution (seconds)
-    interface: "eth0"  # Network interface to be used
     metrics:
       - total_cpu_util
       - tool_cpu_util

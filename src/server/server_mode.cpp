@@ -61,7 +61,7 @@ void ServerMode::writeToCsv(const std::vector<Metric> &metrics) const {
 void ServerMode::startAllMonitors() {
     // network
     networkMonitor_ = std::make_shared<PortTrafficMonitor>(
-        context_.measurement.interface,
+        context_.network.interface,
         context_.network.port,
         context_.measurement.intervalSec
     );

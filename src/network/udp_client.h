@@ -29,4 +29,5 @@ private:
     asio::ip::udp::endpoint endpoint_;
     std::string host_;
     std::string portStr_;
+    ClientContext context_;
 };

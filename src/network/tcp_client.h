@@ -33,4 +33,5 @@ private:
     asio::ip::tcp::resolver resolver_;
     std::string host_;
     std::string portStr_;
+    ClientContext context_;
 };

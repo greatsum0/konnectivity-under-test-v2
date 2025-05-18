@@ -15,6 +15,7 @@
 #include "unified_monitor_controller.h"
 #include "utils/pretty_printer.h"
 #include "utils/csv_writer.h"
+#include "utils/logger.h"
 
 #define CONTROL_PORT 6070
 using namespace std::chrono;
@@ -51,7 +52,7 @@ void ClientMode::writeToCsv(const std::vector<Metric> &metrics) const {
 
     const utils::PivotCSVWriter writer(filename);
     writer.write(metrics);
-    LOG_INFO("Metrics written to " << filename);
+    SESSION_LOG_INFO("Metrics written to " << filename);
 }
 
 void ClientMode::startAllMonitors() {
@@ -100,14 +101,14 @@ void ClientMode::startAllMonitors() {
             }
         }
     );
-    LOG_INFO("Monitors started");
+    SESSION_LOG_INFO("Monitors started");
 }
 
 void ClientMode::stopAllMonitors() const {
     if (unifiedMonitorController_) unifiedMonitorController_->stop();
     if (networkMonitor_) networkMonitor_->stop();
     if (cpuMonitor_) cpuMonitor_->stop();
-    LOG_INFO("Monitors stopped");
+    SESSION_LOG_INFO("Monitors stopped");
 }
 
 std::unique_ptr<INetworkClient> ClientMode::createNetworkClient(asio::io_context &io) const {
@@ -123,7 +124,7 @@ std::unique_ptr<INetworkClient> ClientMode::createNetworkClient(asio::io_context
 void ClientMode::startTraffic() {
     baseClient_ = createNetworkClient(*ioContext_);
     baseClient_->connect();
-    LOG_INFO("Connected to " << context_.network.serverAddress << ":" << context_.network.serverPort);
+    SESSION_LOG_INFO("Connected to " << context_.network.serverAddress << ":" << context_.network.serverPort);
 
     startAllMonitors();
 
@@ -132,7 +133,7 @@ void ClientMode::startTraffic() {
     TrafficScheduler trafficSched(*ioContext_, *baseClient_, context_, *pattern_);
     trafficSched.start();
 
-    LOG_INFO("Traffic scheduler started");
+    SESSION_LOG_INFO("Traffic scheduler started");
 
     const auto exitTimer = std::make_shared<asio::steady_timer>(*ioContext_);
     exitTimer->expires_after(
@@ -142,7 +143,7 @@ void ClientMode::startTraffic() {
     );
 
     exitTimer->async_wait([this](const asio::error_code &) {
-        LOG_INFO("Duration elapsed, posting shutdown steps");
+        SESSION_LOG_INFO("Duration elapsed, posting shutdown steps");
         asio::post(*ioContext_, [this]() {
             if (controlChannel_ && controlChannel_->isOpen()) {
                 controlChannel_->send("END_SCENARIO");
@@ -157,7 +158,7 @@ void ClientMode::startTraffic() {
         });
     });
 
-    LOG_INFO("Running I/O context...");
+    SESSION_LOG_INFO("Running I/O context...");
     ioContext_->run();
 }
 
@@ -181,7 +182,7 @@ void ClientMode::run() {
 
     controlChannel_->setMessageCallback([this](const std::string &msg) {
         if (msg.find("START_SCENARIO") != std::string::npos) {
-            LOG_INFO("Server accepted scenario. Starting traffic...");
+            SESSION_LOG_INFO("Server accepted scenario. Starting traffic...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             startTraffic();
             controlChannel_->close(); // cleanly close control channel
@@ -190,7 +191,7 @@ void ClientMode::run() {
 
     controlChannel_->startReadLoop();
     controlChannel_->sendScenarioFile(context_);
-    LOG_INFO("Scenario file sent to server");
+    SESSION_LOG_INFO("Scenario file sent to server");
 
     // Main thread waits for the control channel to finish
     for (auto &t: threads) {
@@ -204,7 +205,7 @@ void ClientMode::run() {
     const auto allMetrics = combineMetrics();
     utils::PrettyPrinter::printPivotTable(allMetrics);
     writeToCsv(allMetrics);
-    LOG_INFO("Metrics written to CSV.");
+    SESSION_LOG_INFO("Metrics written to CSV.");
 
     cpuCollectors_.clear();
     networkCollectors_.clear();

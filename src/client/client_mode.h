@@ -13,6 +13,16 @@
 #include "tcp_control_channel.h"
 #include "unified_monitor_controller.h"
 
+#define SESSION_LOG_INFO(msg) \
+LOG_INFO("[SESSION] " << msg)
+
+#define SESSION_LOG_WARN(msg) \
+LOG_WARN("[SESSION] " << msg)
+
+#define SESSION_LOG_ERROR(msg) \
+LOG_ERROR("[SESSION] " << msg)
+
+
 class ClientMode {
 public:
     explicit ClientMode(ClientContext context);

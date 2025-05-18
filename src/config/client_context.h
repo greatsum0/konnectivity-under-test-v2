@@ -9,6 +9,7 @@ struct ClientNetworkConfig {
     std::string protocol;
     std::string serverAddress;
     int serverPort;
+    std::string interface;
 };
 
 struct ClientTrafficConfig {

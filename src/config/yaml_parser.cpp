@@ -82,7 +82,6 @@ void YamlParser::parseGeneralSection(std::string &name, std::string &outputPath,
 
 void YamlParser::parseMeasurementSection(MeasurementConfig &m, const YAML::Node &node) {
     m.intervalSec = node["interval_sec"].as<double>();
-    m.interface = node["interface"].as<std::string>();
     m.metricNames = node["metrics"].as<std::vector<std::string> >();
     if (m.metricNames.empty()) {
         m.metricNames = {"bytes_in", "bytes_out"};
@@ -95,6 +94,7 @@ void YamlParser::parseClientNetwork(ClientNetworkConfig &net, const YAML::Node &
     net.protocol = node["protocol"].as<std::string>();
     net.serverAddress = node["server_address"].as<std::string>();
     net.serverPort = node["server_port"].as<int>();
+    net.interface = node["interface"].as<std::string>();
 }
 
 void YamlParser::parseTraffic(ClientTrafficConfig &t, const YAML::Node &node) {
@@ -139,6 +139,7 @@ std::string YamlParser::toYamlString(const ClientContext &ctx) {
     scenario["network"]["protocol"] = ctx.network.protocol;
     scenario["network"]["server_address"] = ctx.network.serverAddress;
     scenario["network"]["server_port"] = ctx.network.serverPort;
+    scenario["network"]["interface"] = ctx.network.interface;
 
     // Traffic
     YAML::Node tp = scenario["traffic_pattern"];
@@ -172,7 +173,6 @@ std::string YamlParser::toYamlString(const ClientContext &ctx) {
     // Metrics
     YAML::Node m = scenario["metric_collection"];
     m["interval_sec"] = ctx.measurement.intervalSec;
-    m["interface"] = ctx.measurement.interface;
     m["metrics"] = ctx.measurement.metricNames;
 
     std::stringstream ss;
@@ -185,6 +185,7 @@ std::string YamlParser::toYamlString(const ClientContext &ctx) {
 void YamlParser::parseServerNetwork(ServerNetworkConfig &net, const YAML::Node &node) {
     net.protocol = node["protocol"].as<std::string>();
     net.port = node["port"].as<int>();
+    net.interface = node["interface"].as<std::string>();
 }
 
 std::string YamlParser::toYamlString(const ServerContext &ctx) {
@@ -195,11 +196,11 @@ std::string YamlParser::toYamlString(const ServerContext &ctx) {
     server["output_path"] = ctx.outputPath;
 
     server["network"]["protocol"] = ctx.network.protocol;
+    server["network"]["interface"] = ctx.network.interface;
     server["network"]["port"] = ctx.network.port;
 
     YAML::Node m = server["metric_collection"];
     m["interval_sec"] = ctx.measurement.intervalSec;
-    m["interface"] = ctx.measurement.interface;
     m["metrics"] = ctx.measurement.metricNames;
 
     std::stringstream ss;

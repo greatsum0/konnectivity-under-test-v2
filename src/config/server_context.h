@@ -8,6 +8,7 @@
 struct ServerNetworkConfig {
     std::string protocol; // "tcp" or "udp"
     int port;
+    std::string interface;
 };
 
 

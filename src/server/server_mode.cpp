@@ -1,91 +1,66 @@
+// server_mode.cpp
 #include "server_mode.h"
-#include <iostream>
-#include <memory>
-#include <asio.hpp>
+#include <thread>
+#include <chrono>
+
+#include <asio/connect.hpp>
+#include <asio/write.hpp>
+#include <format>
 #include <filesystem>
 #include <chrono>
-#include <ctime>
-#include <sstream>
-#include <iomanip>
+#include <algorithm>
+#include <tcp_server.h>
+#include <udp_server.h>
 #include <yaml_parser.h>
-#include <thread>
-#include <vector>
-#include <cerrno>
-#include <asio/steady_timer.hpp>
 
-#include "cpu_usage_monitor.h"
-#include "metric_collector_factory.h"
-#include "metric_store.h"
-#include "port_traffic_monitor.h"
-#include "tcp_control_channel.h"
-#include "udp_server.h"
-#include "tcp_server.h"
-#include "unified_monitor_controller.h"
-#include "utils/csv_writer.h"
-#include "utils/pretty_printer.h"
-
-#define CONTROL_PORT 6070
+using namespace std::chrono;
 
 ServerMode::ServerMode(ServerContext context)
     : context_(std::move(context)), clientContext_() {
 }
 
-std::unique_ptr<INetworkServer> ServerMode::createNetworkServer(asio::io_context &io) {
-    if (context_.network.protocol == "tcp") {
+std::unique_ptr<INetworkServer>
+ServerMode::createNetworkServer(asio::io_context &io) {
+    if (context_.network.protocol == "tcp")
         return std::make_unique<TcpServer>(io, context_);
-    }
-    if (context_.network.protocol == "udp") {
+    if (context_.network.protocol == "udp")
         return std::make_unique<UdpServer>(io, context_);
-    }
     throw std::runtime_error("Unsupported protocol: " + context_.network.protocol);
 }
 
-
 std::vector<Metric> ServerMode::combineMetrics() {
-    std::vector<Metric> allMetrics;
+    std::vector<Metric> all;
+    all.reserve(networkMetrics_.size() + cpuMetrics_.size());
 
-    /// append all metrics to a single vector
-    /// append network metrics first
-    allMetrics.reserve(networkMetrics_.size() + cpuMetrics_.size());
-    allMetrics.insert(allMetrics.end(),
-                      std::make_move_iterator(networkMetrics_.begin()),
-                      std::make_move_iterator(networkMetrics_.end()));
-
-    /// clear network metrics to avoid bloating the memory
+    // move‐append network then CPU
+    std::ranges::move(networkMetrics_, std::back_inserter(all));
     networkMetrics_.clear();
 
-    /// append cpu metrics
-    allMetrics.insert(allMetrics.end(),
-                      std::make_move_iterator(cpuMetrics_.begin()),
-                      std::make_move_iterator(cpuMetrics_.end()));
-    /// clear cpu metrics to avoid bloating the memory
+    std::ranges::move(cpuMetrics_, std::back_inserter(all));
     cpuMetrics_.clear();
 
-    return allMetrics;
+    return all;
 }
 
-void ServerMode::writeToCsv(std::vector<Metric> metrics) const {
-    /// create directories if they do not exist
+void ServerMode::writeToCsv(const std::vector<Metric> &metrics) const {
+    // ensure output dir exists
     std::filesystem::create_directories(context_.outputPath);
 
-    /// append the filename
-    auto now = std::chrono::system_clock::now();
-    auto now_c = std::chrono::system_clock::to_time_t(now);
-    std::tm tm = *std::localtime(&now_c);
-    std::ostringstream ts;
-    ts << std::put_time(&tm, "%Y%m%d_%H%M%S");
-    std::string timestamp = ts.str();
-    std::string filename = context_.outputPath + "/"
-                           + timestamp + "_"
-                           + context_.network.protocol + "_"
-                           + clientContext_.name + ".csv";
+    auto now = system_clock::now();
+    const auto ts = std::format("{:%Y%m%d_%H%M%S}", now);
+    const auto filename = context_.outputPath + "/"
+                          + ts + "_"
+                          + context_.network.protocol + "_"
+                          + clientContext_.name
+                          + ".csv";
 
-    /// write out CSV
-    utils::PivotCSVWriter writer(filename);
+    const utils::PivotCSVWriter writer(filename);
     writer.write(metrics);
+    LOG_INFO("Metrics written to " << filename);
 }
 
-void ServerMode::startAllMonitors(const std::chrono::system_clock::time_point &referenceTime) {
+void ServerMode::startAllMonitors() {
+    // network
     networkMonitor_ = std::make_shared<PortTrafficMonitor>(
         context_.measurement.interface,
         context_.network.port,
@@ -93,38 +68,56 @@ void ServerMode::startAllMonitors(const std::chrono::system_clock::time_point &r
     );
     networkMonitor_->start(nullptr);
     networkCollectors_ = MetricCollectorFactory::create(
-        context_.measurement, networkMetrics_
-    );
+        context_.measurement, networkMetrics_);
+
+    // cpu
     cpuMonitor_ = std::make_shared<CPUUsageMonitor>(
         context_.measurement.intervalSec
     );
 
     cpuCollectors_ = MetricCollectorFactory::create(
-        context_.measurement, cpuMetrics_
-    );
+        context_.measurement, cpuMetrics_);
+
+    // unified controller
     unifiedMonitorController_ = std::make_unique<UnifiedMonitorController>(
         *ioContext_, cpuMonitor_, networkMonitor_, context_.measurement.intervalSec
     );
 
     unifiedMonitorController_->start(
-        [this](std::chrono::system_clock::time_point ts,
+        [this](system_clock::time_point ts,
                const CPUUsageSnapshot &cpuSnap,
                const PortTrafficMonitor::AggregateSample &netSnap) {
             for (const auto &c: networkCollectors_) {
-                c->onNetworkSample(ts, netSnap.bytesIn, netSnap.bytesOut, netSnap.packetsIn, netSnap.packetsOut);
+                c->onNetworkSample(
+                    ts,
+                    netSnap.bytesIn, netSnap.bytesOut,
+                    netSnap.packetsIn, netSnap.packetsOut
+                );
             }
-
-            for (const auto &c: cpuCollectors_) {
+            for (auto &c: cpuCollectors_) {
                 c->onCpuSample(ts, cpuSnap.totalSum, cpuSnap.selfCpu);
-                c->onCpuDetailSample(ts, cpuSnap.perCoreUsages, cpuSnap.selfShareVsTotal, cpuSnap.selfShareVsSystemCap);
+                c->onCpuDetailSample(
+                    ts,
+                    cpuSnap.perCoreUsages,
+                    cpuSnap.selfShareVsTotal,
+                    cpuSnap.selfShareVsSystemCap
+                );
             }
         }
     );
+    LOG_INFO("Monitors started");
+}
+
+void ServerMode::stopAllMonitors() const {
+    if (unifiedMonitorController_) unifiedMonitorController_->stop();
+    if (networkMonitor_) networkMonitor_->stop();
+    if (cpuMonitor_) cpuMonitor_->stop();
+    LOG_INFO("Monitors stopped");
 }
 
 void ServerMode::run() {
     while (true) {
-        isReset = false;
+        isReset_ = false;
         ioContext_ = std::make_shared<asio::io_context>();
 
         // — create the acceptor —
@@ -132,118 +125,112 @@ void ServerMode::run() {
             *ioContext_,
             asio::ip::tcp::endpoint(asio::ip::tcp::v4(), CONTROL_PORT)
         );
+        LOG_INFO("Accepting connections on port " << CONTROL_PORT);
 
-        // — recursive accept loop via shared_ptr to avoid dangling refs —
+        // — recursive async_accept loop —
         auto doAccept = std::make_shared<std::function<void()> >();
         *doAccept = [this, acceptor, doAccept]() {
             acceptor->async_accept(
-                [this, acceptor, doAccept](const std::error_code ec,
-                                           asio::ip::tcp::socket socket) {
+                [this, acceptor, doAccept](const std::error_code &ec,
+                                           asio::ip::tcp::socket sock) {
                     if (ec) {
-                        // suppress normal shutdown errors
-                        if (ec != asio::error::operation_aborted && ec.value() != EBADF) {
-                            std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
+                        if (ec != asio::error::operation_aborted
+                            && ec.value() != EBADF) {
+                            LOG_ERROR("Accept error: " << ec.message());
                         }
                         return; // stop re-arming on error
                     }
 
-                    // if already have a client, reject extras
+                    // reject if already connected
                     if (controlChannel_ && controlChannel_->isOpen()) {
-                        std::cerr << "[SERVER] Rejecting new client, already connected.\n";
+                        LOG_WARN("Rejecting new client; already connected");
                         std::error_code ignored;
-                        socket.shutdown(asio::ip::tcp::socket::shutdown_both, ignored);
-                        socket.close(ignored);
+                        sock.shutdown(asio::ip::tcp::socket::shutdown_both, ignored);
+                        sock.close(ignored);
                         (*doAccept)();
                         return;
                     }
 
-                    // — happy path: new control channel —
-                    std::cout << "[SERVER] Client connected.\n";
+                    // happy path
+                    LOG_INFO("Client connected");
                     controlChannel_ = std::make_shared<TcpControlChannel>(*ioContext_);
-                    controlChannel_->assignSocket(std::move(socket));
+                    controlChannel_->assignSocket(std::move(sock));
 
                     controlChannel_->setDisconnectCallback([this, acceptor]() {
-                        std::cerr << "[SERVER] Control channel disconnected unexpectedly.\n";
-                        isReset = true;
-                        acceptor->close(); // tear down acceptor
+                        LOG_WARN("Control channel disconnected unexpectedly");
+                        isReset_ = true;
+                        acceptor->close();
                         ioContext_->stop();
                     });
 
                     controlChannel_->setMessageCallback(
                         [this, acceptor, doAccept](const std::string &msg) {
-                            if (msg.find("scenario:") != std::string::npos) {
+                            if (msg.rfind("scenario:", 0) == 0) {
                                 clientContext_ = YamlParser::parseClientContextFromString(msg);
-                                startAllMonitors(std::chrono::system_clock::now());
+                                startAllMonitors();
                                 baseServer_ = createNetworkServer(*ioContext_);
                                 baseServer_->start();
                                 controlChannel_->send("START_SCENARIO\n");
-                            } else if (msg.find("END_SCENARIO") != std::string::npos) {
-                                // stop accepting further connections
-                                acceptor->cancel();
-                                acceptor->close();
+                            } else if (msg == "END_SCENARIO") {
+                                // 1) stop generating traffic immediately
+                                if (baseServer_) {
+                                    baseServer_->stop();
+                                }
 
-                                // stop all monitors & servers
+                                // 2) wait one more interval so our periodic callbacks fire
+                                std::this_thread::sleep_for(
+                                    std::chrono::duration<double>(context_.measurement.intervalSec)
+                                );
+
+
+                                // 3) now stop all monitors
                                 if (unifiedMonitorController_) unifiedMonitorController_->stop();
                                 if (networkMonitor_) networkMonitor_->stop();
                                 if (cpuMonitor_) cpuMonitor_->stop();
-                                if (baseServer_) baseServer_->stop();
 
-                                // collect + output metrics
+                                // 4) collect + output metrics
                                 const auto allMetrics = combineMetrics();
                                 utils::PrettyPrinter::printPivotTable(allMetrics);
                                 writeToCsv(allMetrics);
 
+                                // 5) reset collectors for next run
                                 cpuCollectors_.clear();
                                 networkCollectors_.clear();
 
-                                isReset = true;
+                                isReset_ = true;
                                 ioContext_->stop();
                             } else {
-                                std::cout << "[SERVER] Unknown message: " << msg << "\n";
+                                LOG_WARN("Unknown message: " << msg);
                             }
                         }
                     );
 
                     controlChannel_->startReadLoop();
-                    std::cout << "[SERVER] Control channel created.\n";
-
-                    // arm next accept
+                    LOG_INFO("Control channel created");
                     (*doAccept)();
                 }
             );
         };
 
-        // kick off first accept
         (*doAccept)();
 
-        // ——— Multi-threaded io_context run ———
-
-        // 1) keep context alive even if no immediate work
-        auto workGuard = asio::make_work_guard(*ioContext_);
-
-        // 2) spawn pool of (hardware) threads
-        unsigned int threadCount = std::thread::hardware_concurrency();
-        if (threadCount == 0) threadCount = 1;
+        // — run io_context on thread pool —
+        auto guard = asio::make_work_guard(*ioContext_);
+        unsigned n = std::thread::hardware_concurrency();
+        if (n == 0) n = 1;
         std::vector<std::thread> pool;
-        pool.reserve(threadCount - 1);
-
-        for (unsigned int i = 1; i < threadCount; ++i) {
-            pool.emplace_back([io = ioContext_]() {
-                io->run();
-            });
+        for (unsigned i = 1; i < n; ++i) {
+            pool.emplace_back([ctx = ioContext_] { ctx->run(); });
         }
 
-        // 3) run one in main thread
-        std::cout << "[SERVER] Accepting connections on port " << CONTROL_PORT << "\n";
         ioContext_->run();
-        std::cout << "[SERVER] I/O context stopped.\n";
+        LOG_INFO("I/O context stopped");
 
-        // 4) teardown pool
-        workGuard.reset();
+        guard.reset();
         for (auto &t: pool) if (t.joinable()) t.join();
 
-        // — cleanup after reset —
-        if (isReset) {
+        // — cleanup on reset —
+        if (isReset_) {
             if (controlChannel_) {
                 controlChannel_->close();
                 controlChannel_.reset();

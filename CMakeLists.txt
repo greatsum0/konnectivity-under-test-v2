@@ -68,6 +68,7 @@ add_executable(kut ${KUT_SOURCES}
         src/metrics/unified_monitor_controller.cpp
         src/metrics/unified_monitor_controller.h
         src/utils/logger.h
+        src/utils/get_ip_interface.h
 )
 
 # Link yaml-cpp

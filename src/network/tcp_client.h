@@ -6,6 +6,15 @@
 #include <string>
 #include <vector>
 
+#define CLIENT_LOG_INFO(msg) \
+LOG_INFO("[CLIENT] " << msg)
+
+#define CLIENT_LOG_WARN(msg) \
+LOG_WARN("[CLIENT] " << msg)
+
+#define CLIENT_LOG_ERROR(msg) \
+LOG_ERROR("[CLIENT] " << msg)
+
 class TcpClient final : public INetworkClient {
 public:
     TcpClient(asio::io_context &io, const ClientContext &ctx);

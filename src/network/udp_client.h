@@ -5,6 +5,14 @@
 #include <asio.hpp>
 #include <string>
 #include <vector>
+#define CLIENT_LOG_INFO(msg) \
+LOG_INFO("[CLIENT] " << msg)
+
+#define CLIENT_LOG_WARN(msg) \
+LOG_WARN("[CLIENT] " << msg)
+
+#define CLIENT_LOG_ERROR(msg) \
+LOG_ERROR("[CLIENT] " << msg)
 
 class UdpClient final : public INetworkClient {
 public:

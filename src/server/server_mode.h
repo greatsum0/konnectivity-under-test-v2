@@ -18,6 +18,15 @@
 #include "utils/csv_writer.h"
 #include "utils/pretty_printer.h"
 
+#define SESSION_LOG_INFO(msg) \
+LOG_INFO("[SESSION] " << msg)
+
+#define SESSION_LOG_WARN(msg) \
+LOG_WARN("[SESSION] " << msg)
+
+#define SESSION_LOG_ERROR(msg) \
+LOG_ERROR("[SESSION] " << msg)
+
 constexpr uint16_t CONTROL_PORT = 6070;
 
 class ServerMode {

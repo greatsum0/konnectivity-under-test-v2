@@ -3,37 +3,39 @@
 #include <asio/write.hpp>
 #include <iostream>
 
-UdpClient::UdpClient(asio::io_context& io, const ClientContext& ctx)
+#include "utils/logger.h"
+
+UdpClient::UdpClient(asio::io_context &io, const ClientContext &ctx)
     : io_(io),
       socket_(io_),
       resolver_(io_),
       host_(ctx.network.serverAddress),
-      portStr_(std::to_string(ctx.network.serverPort))
-{}
+      portStr_(std::to_string(ctx.network.serverPort)) {
+}
 
 void UdpClient::connect() {
     try {
         /// Opening the udp socket
-        auto results = resolver_.resolve(asio::ip::udp::v4(), host_, portStr_);
+        const auto results = resolver_.resolve(asio::ip::udp::v4(), host_, portStr_);
         endpoint_ = *results.begin();
 
         /// Connect the socket to the endpoint
         socket_.open(asio::ip::udp::v4());
         socket_.connect(endpoint_);
 
-        std::cout << "[INFO] UDP socket connected to "
-                  << host_ << ":" << portStr_ << "\n";
-    } catch (const std::system_error& e) {
-        std::cerr << "[ERROR] UDP connect() failed: " << e.what() << "\n";
+        CLIENT_LOG_INFO("UDP socket connected to "
+            << host_ << ":" << portStr_ << "\n");
+    } catch (const std::system_error &e) {
+        CLIENT_LOG_ERROR("UDP connect() failed: " << e.what() << "\n");
         throw;
     }
 }
 
-void UdpClient::send(const std::vector<uint8_t>& data) {
+void UdpClient::send(const std::vector<uint8_t> &data) {
     try {
         socket_.send(asio::buffer(data));
-    } catch (const std::system_error& e) {
-        std::cerr << "[ERROR] UDP send() failed: " << e.what() << "\n";
+    } catch (const std::system_error &e) {
+        CLIENT_LOG_ERROR("UDP send() failed: " << e.what() << "\n");
         throw;
     }
 }
@@ -43,8 +45,8 @@ void UdpClient::disconnect() {
     socket_.shutdown(asio::ip::udp::socket::shutdown_both, ec);
     socket_.close(ec);
     if (ec) {
-        std::cerr << "[WARN] UDP disconnect error: " << ec.message() << "\n";
+        CLIENT_LOG_WARN("UDP disconnect error: " << ec.message() << "\n");
     } else {
-        std::cout << "[INFO] UDP socket closed cleanly\n";
+        CLIENT_LOG_INFO("UDP socket closed cleanly\n");
     }
 }

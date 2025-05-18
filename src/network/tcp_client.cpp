@@ -3,6 +3,8 @@
 #include <asio/write.hpp>
 #include <iostream>
 
+#include "utils/logger.h"
+
 TcpClient::TcpClient(asio::io_context &io, const ClientContext &ctx)
     : io_(io),
       socket_(io_),
@@ -13,14 +15,14 @@ TcpClient::TcpClient(asio::io_context &io, const ClientContext &ctx)
 
 void TcpClient::connect() {
     try {
-        auto endpoints = resolver_.resolve(host_, portStr_);
+        const auto endpoints = resolver_.resolve(host_, portStr_);
         asio::connect(socket_, endpoints);
-        std::cout << "[INFO] TCP connected to " << host_ << ":" << portStr_ << "\n";
+        CLIENT_LOG_INFO("TCP connected to " << host_ << ":" << portStr_);
     } catch (const std::system_error &e) {
-        std::cerr << "[ERROR] connect() failed: " << e.what() << "\n";
+        CLIENT_LOG_ERROR("[ERROR] connect() failed: " << e.what() << "\n");
 
         std::error_code ec;
-        socket_.close(ec); // socket açık kalmış olabilir
+        socket_.close(ec);
         throw;
     }
 }
@@ -35,7 +37,7 @@ void TcpClient::send(const std::vector<uint8_t> &data) {
             );
         }
     } catch (const std::system_error &e) {
-        std::cerr << "[ERROR] send() failed: " << e.what() << "\n";
+        CLIENT_LOG_ERROR("[ERROR] send() failed: " << e.what() << "\n");
         throw;
     }
 }
@@ -45,14 +47,14 @@ void TcpClient::disconnect() {
 
     socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
     if (ec && ec != asio::error::not_connected) {
-        std::cerr << "[WARN] shutdown error: " << ec.message() << "\n";
+        CLIENT_LOG_WARN("[WARN] shutdown error: " << ec.message() << "\n");
     }
 
     socket_.close(ec);
     if (ec && ec != asio::error::not_connected) {
-        std::cerr << "[WARN] close error: " << ec.message() << "\n";
+        CLIENT_LOG_WARN("[WARN] close error: " << ec.message() << "\n");
     } else {
-        std::cout << "[INFO] TCP disconnected cleanly\n";
+        CLIENT_LOG_INFO("TCP disconnected cleanly");
     }
 }
 

@@ -3,6 +3,8 @@
 #include <asio/connect.hpp>
 #include <asio/write.hpp>
 
+#include "utils/logger.h"
+
 TcpControlChannel::TcpControlChannel(asio::io_context &io_context)
     : io_(io_context),
       socket_(io_),
@@ -15,16 +17,16 @@ void TcpControlChannel::connect(const std::string &host, uint16_t port) {
     try {
         auto endpoints = resolver_.resolve(host_, std::to_string(port_));
         asio::connect(socket_, endpoints);
-        LOG_INFO("TcpControlChannel connected to " << host_ << ":" << port_);
+        CTRL_LOG_INFO("TcpControlChannel connected to " << host_ << ":" << port_);
     } catch (const std::system_error &e) {
-        LOG_ERROR("connect to " << host_ << ":" << port_ << " failed: " << e.what());
+        CTRL_LOG_ERROR("connect to " << host_ << ":" << port_ << " failed: " << e.what());
         throw;
     }
 }
 
 void TcpControlChannel::assignSocket(asio::ip::tcp::socket sock) {
     socket_ = std::move(sock);
-    LOG_INFO("TcpControlChannel socket assigned from accept()");
+    CTRL_LOG_INFO("TcpControlChannel socket assigned from accept()");
 }
 
 void TcpControlChannel::startReadLoop() {
@@ -43,7 +45,7 @@ void TcpControlChannel::startReadLoop() {
                     self->messageCallback_(msg);
                 self->startReadLoop();
             } else {
-                LOG_WARN("Read error/EOF: " << ec.message());
+                CTRL_LOG_WARN("Read error/EOF: " << ec.message());
                 self->close();
                 if (self->disconnectCallback_)
                     self->disconnectCallback_();
@@ -74,7 +76,7 @@ void TcpControlChannel::doWrite() {
                 if (!self->writeQueue_.empty())
                     self->doWrite();
             } else {
-                LOG_ERROR("Send failed: " << ec.message());
+                CTRL_LOG_ERROR("Send failed: " << ec.message());
                 self->close();
                 if (self->disconnectCallback_)
                     self->disconnectCallback_();
@@ -89,14 +91,14 @@ void TcpControlChannel::close() {
     std::error_code ec;
     socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
     if (ec && ec != asio::error::not_connected) {
-        LOG_ERROR("shutdown error: " << ec.message());
+        CTRL_LOG_ERROR("shutdown error: " << ec.message());
     }
 
     socket_.close(ec);
     if (ec && ec != asio::error::not_connected) {
-        LOG_ERROR("close error: " << ec.message());
+        CTRL_LOG_ERROR("close error: " << ec.message());
     } else {
-        LOG_INFO("Socket closed cleanly");
+        CTRL_LOG_INFO("Socket closed cleanly");
     }
 }
 

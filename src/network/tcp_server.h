@@ -4,6 +4,14 @@
 #include <asio.hpp>
 #include <memory>
 #include <array>
+#define SERVER_LOG_INFO(msg) \
+LOG_INFO("[SERVER] " << msg)
+
+#define SERVER_LOG_WARN(msg) \
+LOG_WARN("[SERVER] " << msg)
+
+#define SERVER_LOG_ERROR(msg) \
+LOG_ERROR("[SERVER] " << msg)
 
 class TcpServer final : public INetworkServer {
 public:

@@ -13,6 +13,8 @@
 #include <udp_server.h>
 #include <yaml_parser.h>
 
+#include "utils/logger.h"
+
 using namespace std::chrono;
 
 ServerMode::ServerMode(ServerContext context)
@@ -56,7 +58,7 @@ void ServerMode::writeToCsv(const std::vector<Metric> &metrics) const {
 
     const utils::PivotCSVWriter writer(filename);
     writer.write(metrics);
-    LOG_INFO("Metrics written to " << filename);
+    SESSION_LOG_INFO("Metrics written to " << filename);
 }
 
 void ServerMode::startAllMonitors() {
@@ -105,14 +107,14 @@ void ServerMode::startAllMonitors() {
             }
         }
     );
-    LOG_INFO("Monitors started");
+    SESSION_LOG_INFO("Monitors started");
 }
 
 void ServerMode::stopAllMonitors() const {
     if (unifiedMonitorController_) unifiedMonitorController_->stop();
     if (networkMonitor_) networkMonitor_->stop();
     if (cpuMonitor_) cpuMonitor_->stop();
-    LOG_INFO("Monitors stopped");
+    SESSION_LOG_INFO("Monitors stopped");
 }
 
 void ServerMode::run() {
@@ -125,7 +127,7 @@ void ServerMode::run() {
             *ioContext_,
             asio::ip::tcp::endpoint(asio::ip::tcp::v4(), CONTROL_PORT)
         );
-        LOG_INFO("Accepting connections on port " << CONTROL_PORT);
+        SESSION_LOG_INFO("Accepting connections on port " << CONTROL_PORT);
 
         // — recursive async_accept loop —
         auto doAccept = std::make_shared<std::function<void()> >();
@@ -136,14 +138,14 @@ void ServerMode::run() {
                     if (ec) {
                         if (ec != asio::error::operation_aborted
                             && ec.value() != EBADF) {
-                            LOG_ERROR("Accept error: " << ec.message());
+                            SESSION_LOG_ERROR("Accept error: " << ec.message());
                         }
                         return; // stop re-arming on error
                     }
 
                     // reject if already connected
                     if (controlChannel_ && controlChannel_->isOpen()) {
-                        LOG_WARN("Rejecting new client; already connected");
+                        SESSION_LOG_WARN("Rejecting new client; already connected");
                         std::error_code ignored;
                         sock.shutdown(asio::ip::tcp::socket::shutdown_both, ignored);
                         sock.close(ignored);
@@ -152,12 +154,12 @@ void ServerMode::run() {
                     }
 
                     // happy path
-                    LOG_INFO("Client connected");
+                    SESSION_LOG_INFO("Client connected");
                     controlChannel_ = std::make_shared<TcpControlChannel>(*ioContext_);
                     controlChannel_->assignSocket(std::move(sock));
 
                     controlChannel_->setDisconnectCallback([this, acceptor]() {
-                        LOG_WARN("Control channel disconnected unexpectedly");
+                        SESSION_LOG_WARN("Control channel disconnected unexpectedly");
                         isReset_ = true;
                         acceptor->close();
                         ioContext_->stop();
@@ -198,13 +200,13 @@ void ServerMode::run() {
                                 isReset_ = true;
                                 ioContext_->stop();
                             } else {
-                                LOG_WARN("Unknown message: " << msg);
+                                SESSION_LOG_WARN("Unknown message: " << msg);
                             }
                         }
                     );
 
                     controlChannel_->startReadLoop();
-                    LOG_INFO("Control channel created");
+                    SESSION_LOG_INFO("Control channel created");
                     (*doAccept)();
                 }
             );
@@ -222,7 +224,7 @@ void ServerMode::run() {
         }
 
         ioContext_->run();
-        LOG_INFO("I/O context stopped");
+        SESSION_LOG_INFO("I/O context stopped");
 
         guard.reset();
         for (auto &t: pool) if (t.joinable()) t.join();

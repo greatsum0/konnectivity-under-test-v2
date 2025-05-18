@@ -1,6 +1,7 @@
 #include "tcp_server.h"
 #include <iostream>
 #include <cerrno>
+#include "utils/logger.h"
 
 TcpServer::TcpServer(asio::io_context &io, const ServerContext &context)
     : INetworkServer(io, context),
@@ -23,12 +24,12 @@ void TcpServer::startAccept() {
                                    if (!clientConnected_) {
                                        socket_ = newSocket;
                                        clientConnected_ = true;
-                                       std::cout << "[SERVER] Client connected from "
-                                               << socket_->remote_endpoint() << "\n";
+                                       SERVER_LOG_INFO("Client connected from "
+                                           << socket_->remote_endpoint() << "\n");
                                        read();
                                    } else {
-                                       std::cout << "[SERVER] Rejecting extra client from "
-                                               << newSocket->remote_endpoint() << "\n";
+                                       SERVER_LOG_INFO("Rejecting extra client from "
+                                           << newSocket->remote_endpoint() << "\n");
                                        std::error_code ignored;
                                        newSocket->shutdown(asio::ip::tcp::socket::shutdown_both, ignored);
                                        newSocket->close(ignored);
@@ -39,7 +40,7 @@ void TcpServer::startAccept() {
                                } else {
                                    // suppress expected shutdown errors
                                    if (ec != asio::error::operation_aborted && ec.value() != EBADF) {
-                                       std::cerr << "[SERVER] Accept error: " << ec.message() << "\n";
+                                       SERVER_LOG_ERROR("Accept error: " << ec.message() << "\n");
                                    }
                                    // do NOT call startAccept() here
                                }
@@ -57,7 +58,7 @@ void TcpServer::read() {
                 // process the message...
                 read(); // keep reading
             } else {
-                std::cout << "[SERVER] Client disconnected: " << ec.message() << "\n";
+                SERVER_LOG_INFO("Client disconnected: " << ec.message() << "\n");
                 std::error_code shutdownEc;
                 if (socket_->is_open()) {
                     socket_->shutdown(asio::ip::tcp::socket::shutdown_both, shutdownEc);

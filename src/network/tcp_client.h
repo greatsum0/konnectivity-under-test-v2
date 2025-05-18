@@ -7,13 +7,13 @@
 #include <vector>
 
 #define CLIENT_LOG_INFO(msg) \
-LOG_INFO("[CLIENT] " << msg)
+LOG_INFO("[TRAFFIC] " << msg)
 
 #define CLIENT_LOG_WARN(msg) \
-LOG_WARN("[CLIENT] " << msg)
+LOG_WARN("[TRAFFIC] " << msg)
 
 #define CLIENT_LOG_ERROR(msg) \
-LOG_ERROR("[CLIENT] " << msg)
+LOG_ERROR("[TRAFFIC] " << msg)
 
 class TcpClient final : public INetworkClient {
 public:

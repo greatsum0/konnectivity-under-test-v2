@@ -10,13 +10,13 @@
 #include <iostream>   // for logging macros
 
 #define CTRL_LOG_INFO(msg) \
-LOG_INFO("[CTRL] " << msg)
+LOG_INFO("[CONTROL] " << msg)
 
 #define CTRL_LOG_WARN(msg) \
-LOG_WARN("[CTRL] " << msg)
+LOG_WARN("[CONTROL] " << msg)
 
 #define CTRL_LOG_ERROR(msg) \
-LOG_ERROR("[CTRL] " << msg)
+LOG_ERROR("[CONTROL] " << msg)
 
 // ————————————————————————————————————————————————————————————————————————————
 /**

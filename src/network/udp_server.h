@@ -4,13 +4,13 @@
 #include <asio.hpp>
 
 #define SERVER_LOG_INFO(msg) \
-LOG_INFO("[SERVER] " << msg)
+LOG_INFO("[TRAFFIC] " << msg)
 
 #define SERVER_LOG_WARN(msg) \
-LOG_WARN("[SERVER] " << msg)
+LOG_WARN("[TRAFFIC] " << msg)
 
 #define SERVER_LOG_ERROR(msg) \
-LOG_ERROR("[SERVER] " << msg)
+LOG_ERROR("[TRAFFIC] " << msg)
 
 class UdpServer final : public INetworkServer {
 public:

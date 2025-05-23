@@ -14,32 +14,37 @@ TcpClient::TcpClient(asio::io_context &io, const ClientContext &ctx)
 }
 
 void TcpClient::connect() {
-    try {
-        const auto endpoints = resolver_.resolve(host_, portStr_);
-        asio::connect(socket_, endpoints);
-        CLIENT_LOG_INFO("TCP connected to " << host_ << ":" << portStr_);
-    } catch (const std::system_error &e) {
-        CLIENT_LOG_ERROR("[ERROR] connect() failed: " << e.what() << "\n");
+    // Asynchronously resolve DNS
+    resolver_.async_resolve(host_, portStr_,
+        [this](const asio::error_code &ec,
+               asio::ip::tcp::resolver::results_type results) {
+            if (ec) {
+                CLIENT_LOG_ERROR("[ERROR] resolve() failed: " << ec.message());
+                return;
+            }
 
-        std::error_code ec;
-        socket_.close(ec);
-        throw;
-    }
+            // Asynchronously connect to one of the endpoints
+            asio::async_connect(socket_, results,
+                [this](const asio::error_code &ec,
+                       const asio::ip::tcp::endpoint & /*endpoint*/) {
+                    if (ec) {
+                        CLIENT_LOG_ERROR("[ERROR] connect() failed: " << ec.message());
+                    } else {
+                        CLIENT_LOG_INFO("TCP connected to " << host_ << ":" << portStr_);
+                    }
+                });
+        });
 }
 
 void TcpClient::send(const std::vector<uint8_t> &data) {
-    try {
-        std::size_t totalBytes = 0;
-        while (totalBytes < data.size()) {
-            totalBytes += asio::write(
-                socket_,
-                asio::buffer(data.data() + totalBytes, data.size() - totalBytes)
-            );
-        }
-    } catch (const std::system_error &e) {
-        CLIENT_LOG_ERROR("[ERROR] send() failed: " << e.what() << "\n");
-        throw;
-    }
+    // Asynchronously write the entire buffer
+    asio::async_write(socket_,
+                      asio::buffer(data.data(), data.size()),
+        [this](const asio::error_code &ec, std::size_t bytesTransferred) {
+            if (ec) {
+                CLIENT_LOG_ERROR("[ERROR] send() failed: " << ec.message());
+            }
+        });
 }
 
 void TcpClient::disconnect() {
@@ -47,12 +52,12 @@ void TcpClient::disconnect() {
 
     socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
     if (ec && ec != asio::error::not_connected) {
-        CLIENT_LOG_WARN("[WARN] shutdown error: " << ec.message() << "\n");
+        CLIENT_LOG_WARN("[WARN] shutdown error: " << ec.message());
     }
 
     socket_.close(ec);
     if (ec && ec != asio::error::not_connected) {
-        CLIENT_LOG_WARN("[WARN] close error: " << ec.message() << "\n");
+        CLIENT_LOG_WARN("[WARN] close error: " << ec.message());
     } else {
         CLIENT_LOG_INFO("TCP disconnected cleanly");
     }

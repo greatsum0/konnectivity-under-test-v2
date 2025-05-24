@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "metrics/metric_store.h"
+#include "metric.h"
 
 namespace utils {
     /// Pretty-prints metrics in pivot form:

@@ -17,5 +17,4 @@ struct ServerContext {
 
     MeasurementConfig measurement;
     ServerNetworkConfig network;
-
 };

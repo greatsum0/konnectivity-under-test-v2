@@ -1,46 +1,67 @@
-// traffic_scheduler.cpp
+// src/traffic_scheduler.cpp
 #include "traffic_scheduler.h"
 
-TrafficScheduler::TrafficScheduler(asio::io_context &io,
+#include <logger.h>
+
+TrafficScheduler::TrafficScheduler(boost::asio::io_context &io,
                                    INetworkClient &client,
                                    const ClientContext &context,
-                                   ITrafficPattern &pattern)
+                                   ITrafficPattern &pattern,
+                                   std::function<void()> onFinish)
     : io_(io),
       client_(client),
-      context_(context), pattern_(pattern), timer_(io_),
-      packetBuffer_(context.traffic.packetSize, 0xAB) {
-    // 3) set our first "wake" to now
-    maxPackets_ = pattern_.computeMaxPackets(context_.traffic.durationSec,
-                                             context_.traffic.packetSize);
+      context_(context),
+      pattern_(pattern),
+      timer_(io_),
+      packetBuffer_(context.traffic.packetSize, 0xAB),
+      onFinish_(std::move(onFinish)) {
+    maxPackets_ = pattern_.computeMaxPackets(
+        context_.traffic.durationSec,
+        context_.traffic.packetSize);
+
     nextTime_ = std::chrono::steady_clock::now();
 }
 
 void TrafficScheduler::start() {
-    // schedule the very first send
+    startTime_ = std::chrono::steady_clock::now();
+    nextTime_ = startTime_;
+    packetsSent_ = 0;
+
     timer_.expires_at(nextTime_);
-    timer_.async_wait(
-        [this](auto ec) { sendOne(ec); }
-    );
+    timer_.async_wait([this](auto ec) { sendOne(ec); });
 }
 
-void TrafficScheduler::sendOne(const asio::error_code &ec) {
+void TrafficScheduler::sendOne(const boost::system::error_code &ec) {
     if (ec) return;
 
-    // check elapsed time
-    double elapsed = std::chrono::duration<double>(
-        std::chrono::steady_clock::now() - startTime_).count();
-    if (elapsed >= context_.traffic.durationSec) {
-        return; // done
+    // Stop if we sent too many packets
+    if (packetsSent_ >= maxPackets_) {
+        Logger::instance().info("Max packets reached, finishing traffic.");
+        if (onFinish_) onFinish_();
+        return;
     }
 
-    // 1) ask pattern for this interval's payload and send it
-    client_.send(packetBuffer_);
+    // Stop if duration elapsed
+    auto now = std::chrono::steady_clock::now();
+    double elapsed = std::chrono::duration<double>(now - startTime_).count();
+    if (elapsed >= context_.traffic.durationSec) {
+        Logger::instance().info("Traffic duration reached, finishing traffic.");
+        if (onFinish_) onFinish_();
+        return;
+    }
 
-    // 2) ask pattern how long until the *next* send
-    const auto delay = pattern_.generateDelay(context_.traffic.packetSize,
-                                               context_.traffic.intervalSec);
+    // Send one packet
+    //convert packet to string
+    const std::string packetString(packetBuffer_.begin(), packetBuffer_.end());
+    client_.send(packetString);
+    ++packetsSent_;
 
-    // 3) advance our absolute nextTime_ and schedule
+    // Compute delay until next send
+    const auto delay = pattern_.generateDelay(
+        context_.traffic.packetSize,
+        context_.traffic.intervalSec);
+
+    // Schedule next send
     nextTime_ += delay;
     timer_.expires_at(nextTime_);
     timer_.async_wait([this](auto ec) { sendOne(ec); });

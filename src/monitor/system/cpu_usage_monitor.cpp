@@ -164,8 +164,8 @@ CPUUsageSnapshot CPUUsageMonitor::sample() {
 
     double selfShareVsTotal = (totalSum > 0.0) ? (selfCpu / totalSum) * 100.0 : 0.0;
     double selfShareVsSystemCap = (!perCoreUsages.empty())
-        ? (selfCpu / (perCoreUsages.size() * 100.0)) * 100.0
-        : 0.0;
+                                      ? (selfCpu / (perCoreUsages.size() * 100.0)) * 100.0
+                                      : 0.0;
 
     return CPUUsageSnapshot{
         perCoreUsages,

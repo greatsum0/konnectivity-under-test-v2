@@ -10,5 +10,5 @@
 struct Metric {
     std::chrono::system_clock::time_point timestamp;
     std::string key;
-    double      value;
+    double value;
 };

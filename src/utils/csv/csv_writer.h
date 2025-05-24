@@ -1,9 +1,8 @@
-// utils/pivot_csv_writer.h
 #pragma once
 
 #include <string>
 #include <vector>
-#include "metrics/metric_store.h"
+#include "metric.h"
 
 namespace utils {
     /// Writes a collection of Metric entries out as a pivot‐style CSV:

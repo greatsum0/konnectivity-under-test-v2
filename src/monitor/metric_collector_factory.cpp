@@ -1,10 +1,10 @@
 #include "metric_collector_factory.h"
-
 #include "bytes_transferred_collector.h"
 #include "imetric_collector.h"
 #include "self_cpu_collector.h"
 #include "throughput_collector.h"
 #include "total_cpu_collector.h"
+
 
 std::vector<std::unique_ptr<IMetricCollector> >
 MetricCollectorFactory::create(const MeasurementConfig &config,
@@ -37,4 +37,3 @@ MetricCollectorFactory::create(const MeasurementConfig &config,
 
     return v;
 }
-

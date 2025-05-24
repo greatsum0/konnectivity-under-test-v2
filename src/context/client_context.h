@@ -12,13 +12,13 @@ struct ClientNetworkConfig {
 };
 
 struct ClientTrafficConfig {
-    std::string type;           // e.g., "constant", "burst", ...
+    std::string type; // e.g., "constant", "burst", ...
     double durationSec;
     double intervalSec;
 
     // Common
     double rateMbps = 0;
-    int packetSize = 0;        // in bytes
+    int packetSize = 0; // in bytes
 
     // Burst / RandomBurst / PureBurst
     double burstSizeMb = 0;
@@ -44,7 +44,6 @@ struct ClientTrafficConfig {
     // Sinusoidal
     double amplitude = 0;
     double frequency = 0;
-
 };
 
 struct ClientContext {

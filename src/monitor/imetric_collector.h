@@ -1,5 +1,9 @@
 #pragma once
 
+#include <string>
+#include <functional>
+#include <memory>
+
 struct IMetricCollector {
     virtual ~IMetricCollector() = default;
 

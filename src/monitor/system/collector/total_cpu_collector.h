@@ -1,6 +1,6 @@
 #pragma once
 
-#include "metric_store.h"
+#include "metric.h"
 #include <vector>
 #include "imetric_collector.h"
 

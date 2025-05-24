@@ -1,7 +1,7 @@
 #include "unified_monitor_controller.h"
 
 UnifiedMonitorController::UnifiedMonitorController(
-    asio::io_context &ioContext,
+    boost::asio::io_context &ioContext,
     std::shared_ptr<CPUUsageMonitor> cpuMonitor,
     std::shared_ptr<PortTrafficMonitor> networkMonitor,
     const int intervalSec
@@ -10,7 +10,7 @@ UnifiedMonitorController::UnifiedMonitorController(
       cpuMonitor_(std::move(cpuMonitor)),
       networkMonitor_(std::move(networkMonitor)),
       intervalSec_(intervalSec),
-      timer_(std::make_unique<asio::steady_timer>(ioContext_)) {
+      timer_(std::make_unique<boost::asio::steady_timer>(ioContext_)) {
 }
 
 void UnifiedMonitorController::start(Callback callback) {
@@ -36,7 +36,7 @@ void UnifiedMonitorController::tick() {
     callback_(now, cpuSnapshot, netSample);
 
     timer_->expires_after(std::chrono::seconds(intervalSec_));
-    timer_->async_wait([this](const asio::error_code &ec) {
+    timer_->async_wait([this](const boost::system::error_code &ec) {
         if (!ec) tick();
     });
 }

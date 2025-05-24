@@ -2,7 +2,7 @@
 
 #include "cpu_usage_monitor.h"
 #include "port_traffic_monitor.h"
-#include <asio.hpp>
+#include <boost/asio.hpp>
 #include <chrono>
 #include <functional>
 
@@ -18,7 +18,7 @@ public:
     )>;
 
     UnifiedMonitorController(
-        asio::io_context &ioContext,
+        boost::asio::io_context &ioContext,
         std::shared_ptr<CPUUsageMonitor> cpuMonitor,
         std::shared_ptr<PortTrafficMonitor> networkMonitor,
         int intervalSec
@@ -31,12 +31,12 @@ public:
 private:
     void tick();
 
-    asio::io_context &ioContext_;
+    boost::asio::io_context &ioContext_;
     std::shared_ptr<CPUUsageMonitor> cpuMonitor_;
     std::shared_ptr<PortTrafficMonitor> networkMonitor_;
     int intervalSec_;
 
-    std::unique_ptr<asio::steady_timer> timer_;
+    std::unique_ptr<boost::asio::steady_timer> timer_;
     Callback callback_;
 
     bool running_ = false;

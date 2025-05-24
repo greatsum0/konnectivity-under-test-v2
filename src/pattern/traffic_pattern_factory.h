@@ -6,13 +6,13 @@
 #include <stdexcept>
 #include <string>
 
-#include "traffic/constant/constant_traffic_pattern.h"
-#include "traffic/burst/burst_traffic_pattern.h"
-#include "traffic/burst/pure_burst_traffic_pattern.h"
-#include "traffic/burst/random_burst_traffic_pattern.h"
-#include "traffic/sinusoidal/sinusoidal_traffic_pattern.h"
-#include "traffic/ramp/ramp_up_traffic_pattern.h"
-#include "traffic/ramp/ramp_down_traffic_pattern.h"
+#include "constant_traffic_pattern.h"
+#include "burst_traffic_pattern.h"
+#include "pure_burst_traffic_pattern.h"
+#include "random_burst_traffic_pattern.h"
+#include "sinusoidal_traffic_pattern.h"
+#include "ramp_up_traffic_pattern.h"
+#include "ramp_down_traffic_pattern.h"
 
 
 class TrafficPatternFactory {

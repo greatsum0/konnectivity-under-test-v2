@@ -1,6 +1,6 @@
 // controller.cpp
 #include "controller.h"
-
+#include <logger.h>
 #include "tcp_client.h"
 #include "tcp_server.h"
 
@@ -37,9 +37,11 @@ void Controller::startClient(const std::string &host, unsigned short port) {
 void Controller::send(const std::string &message) const {
     if (state_ != State::Connected) return;
     if (mode_ == Mode::Server && server_) {
-        server_->send(message);
+        Logger::instance().debug("Controller::send: " + message);
+        server_->syncSend(message);
     } else if (mode_ == Mode::Client && client_) {
-        client_->send(message);
+        Logger::instance().debug("Controller::send: " + message);
+        client_->syncSend(message);
     }
 }
 

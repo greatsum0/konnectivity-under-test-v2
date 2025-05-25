@@ -9,18 +9,24 @@
 #include <unified_monitor_controller.h>
 #include <boost/asio/io_context.hpp>
 #include <pattern/itraffic_pattern.h>
+#include <thread>
+#include <vector>
+#include <memory>
 
 class ClientSession {
 public:
     explicit ClientSession(ClientContext &context);
 
-    std::shared_ptr<INetworkClient> createNetworkClient(boost::asio::io_context &ioContext, const std::string &host, unsigned short port) const;
+    std::shared_ptr<INetworkClient> createNetworkClient(boost::asio::io_context &ioContext, const std::string &host,
+                                                        unsigned short port) const;
 
     [[nodiscard]] int run();
 
+    static void pinThread2Core(unsigned coreId);
+
     void startAllMonitors();
 
-    void stopAllMonitors() const;
+    void stopAllMonitors();
 
     std::vector<Metric> combineMetrics();
 
@@ -38,6 +44,18 @@ private:
     std::shared_ptr<CPUUsageMonitor> cpuMonitor_;
 
     std::unique_ptr<UnifiedMonitorController> unifiedMonitorController_;
+
+    // IO contexts for isolated monitoring
+    std::shared_ptr<boost::asio::io_context> cpuIoContext_;
+    std::shared_ptr<boost::asio::io_context> networkIoContext_;
+
+    // Work guards to keep IO contexts alive
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> cpuWorkGuard_;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> networkWorkGuard_;
+
+    // Threads dedicated to CPU and Network monitors
+    std::vector<std::thread> cpuThreads_;
+    std::vector<std::thread> networkThreads_;
 
     std::vector<std::unique_ptr<IMetricCollector> > cpuCollectors_;
 

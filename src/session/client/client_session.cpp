@@ -9,15 +9,27 @@
 #include <traffic_pattern_factory.h>
 #include <yaml_parser.h>
 #include <filesystem>
+#include <thread>
+#include <vector>
+#include <boost/asio/executor_work_guard.hpp>
+#ifdef __linux__
+#  include <pthread.h>
+#endif
 #define CONTROL_PORT 6070
 
-ClientSession::ClientSession(ClientContext &context): context_(context),
-                                                      ioContext_(std::make_shared<boost::asio::io_context>()) {
+ClientSession::ClientSession(ClientContext &context)
+    : context_(context),
+      ioContext_(std::make_shared<boost::asio::io_context>()),
+      cpuIoContext_(std::make_shared<boost::asio::io_context>()),
+      networkIoContext_(std::make_shared<boost::asio::io_context>()),
+      cpuWorkGuard_(boost::asio::make_work_guard(*cpuIoContext_)),
+      networkWorkGuard_(boost::asio::make_work_guard(*networkIoContext_)) {
 }
 
-std::shared_ptr<INetworkClient> ClientSession::createNetworkClient(boost::asio::io_context &ioContext,
-                                                                   const std::string &host,
-                                                                   unsigned short port) const {
+std::shared_ptr<INetworkClient> ClientSession::createNetworkClient(
+    boost::asio::io_context &ioContext,
+    const std::string &host,
+    unsigned short port) const {
     if (context_.network.protocol == "tcp")
         return std::make_shared<TcpClient>(ioContext, host, port, [this](const std::string) {
         });
@@ -28,20 +40,20 @@ std::shared_ptr<INetworkClient> ClientSession::createNetworkClient(boost::asio::
 }
 
 int ClientSession::run() {
-    std::promise<void> readyPromise;
+    std::promise<void> readyPromise, scenarioDonePromise;
     const auto readyFuture = readyPromise.get_future();
-
-    std::promise<void> scenarioDonePromise;
     const auto scenarioDoneFuture = scenarioDonePromise.get_future();
 
     // Create a controller
     controller_ = std::make_shared<Controller>(*ioContext_,
                                                [this, &readyPromise, &scenarioDonePromise](const std::string &msg) {
                                                    if (msg == "server_ready") {
-                                                       Logger::instance().info("Server is ready, unlocking run()");
+                                                       Logger::instance().info(
+                                                           "Received server_ready, starting traffic setup");
                                                        readyPromise.set_value(); // wake up run()
                                                    } else if (msg == "scenario_finished_ack") {
-                                                       Logger::instance().info("Acknowledge received, sending ack_ack and unlocking");
+                                                       Logger::instance().info(
+                                                           "Received scenario_finished_ack");
                                                        scenarioDonePromise.set_value();
                                                    } else {
                                                        Logger::instance().debug("msg: " + msg);
@@ -49,25 +61,49 @@ int ClientSession::run() {
                                                });
 
     try {
-        if (context_.network.protocol == "tcp") {
-            Logger::instance().info(
-                "Connecting to TCP server at " + context_.network.serverAddress + ":" + std::to_string(
-                    CONTROL_PORT));
-            controller_->startClient(context_.network.serverAddress, CONTROL_PORT);
-        } else if (context_.network.protocol == "udp") {
-            Logger::instance().info(
-                "Connecting to UDP server at " + context_.network.serverAddress + ":" + std::to_string(
-                    CONTROL_PORT));
-            controller_->startClient(context_.network.serverAddress, CONTROL_PORT);
-        } else {
-            Logger::instance().error("Unknown protocol: " + context_.network.protocol);
-            throw std::runtime_error("Unknown protocol: " + context_.network.protocol);
+        Logger::instance().info(
+            "Connecting to TCP communication server at " + context_.network.serverAddress + ":" + std::to_string(
+                CONTROL_PORT));
+        controller_->startClient(context_.network.serverAddress, CONTROL_PORT);
+
+        auto workGuard = boost::asio::make_work_guard(*ioContext_);
+        // get core count
+        unsigned int numCores = std::thread::hardware_concurrency();
+        if (numCores == 0) numCores = 1;
+        Logger::instance().info("Launching " + std::to_string(numCores) + " IO threads");
+
+        // spawn & pin them
+        std::vector<std::thread> ioThreads;
+        ioThreads.reserve(numCores);
+        for (unsigned core = 0; core < numCores; ++core) {
+            ioThreads.emplace_back([this, core]() {
+                this->pinThread2Core(core);
+                ioContext_->run();
+            });
         }
 
-        // Run the I/O context
-        std::thread io_thread([&]() {
-            ioContext_->run();
-        });
+        // spawn CPU and Network monitor threads for total isolation
+        unsigned int cpuCores = numCores / 2;
+        if (cpuCores == 0) cpuCores = 1;
+        unsigned int networkCores = numCores - cpuCores;
+        Logger::instance().info("Launching " + std::to_string(cpuCores) + " CPU monitor threads and "
+                                + std::to_string(networkCores) + " network monitor threads");
+
+        // CPU threads
+        for (unsigned core = 0; core < cpuCores; ++core) {
+            cpuThreads_.emplace_back([this, core]() {
+                this->pinThread2Core(core);
+                cpuIoContext_->run();
+            });
+        }
+        // Network threads
+        for (unsigned i = 0; i < networkCores; ++i) {
+            unsigned core = cpuCores + i;
+            networkThreads_.emplace_back([this, core]() {
+                this->pinThread2Core(core);
+                networkIoContext_->run();
+            });
+        }
 
         const auto yaml = YamlParser::toYamlString(context_);
         controller_->send(yaml);
@@ -101,14 +137,19 @@ int ClientSession::run() {
 
         scenarioDoneFuture.wait();
 
-        controller_->stop();
         baseClient_->stop();
+        Logger::instance().info("Base client stopped.");
+        controller_->stop();
+        Logger::instance().info("Controller stopped.");
+
+        // let run() return by dropping the work guard
+        workGuard.reset();
+        Logger::instance().info("Stopping IO context and joining threads...");
         ioContext_->stop();
 
-        Logger::instance().info("Client stopped.");
-
-        if (io_thread.joinable())
-            io_thread.join();
+        for (auto &t: ioThreads) {
+            if (t.joinable()) t.join();
+        }
         stopAllMonitors();
 
         const auto allMetrics = combineMetrics();
@@ -126,6 +167,14 @@ int ClientSession::run() {
     return 0;
 }
 
+void ClientSession::pinThread2Core(unsigned coreId) {
+#ifdef __linux__
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(coreId, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+#endif
+}
 
 void ClientSession::startAllMonitors() {
     // network
@@ -176,10 +225,25 @@ void ClientSession::startAllMonitors() {
     Logger::instance().info("Monitors started");
 }
 
-void ClientSession::stopAllMonitors() const {
+void ClientSession::stopAllMonitors() {
     if (unifiedMonitorController_) unifiedMonitorController_->stop();
     if (networkMonitor_) networkMonitor_->stop();
     if (cpuMonitor_) cpuMonitor_->stop();
+
+    // teardown CPU pool
+    cpuWorkGuard_.reset();
+    if (cpuIoContext_) cpuIoContext_->stop();
+    for (auto &t: cpuThreads_) {
+        if (t.joinable()) t.join();
+    }
+
+    // teardown Network pool
+    networkWorkGuard_.reset();
+    if (networkIoContext_) networkIoContext_->stop();
+    for (auto &t: networkThreads_) {
+        if (t.joinable()) t.join();
+    }
+
     Logger::instance().info("Monitors stopped");
 }
 
@@ -198,18 +262,30 @@ std::vector<Metric> ClientSession::combineMetrics() {
 }
 
 void ClientSession::writeToCsv(const std::vector<Metric> &metrics) const {
-    // ensure output dir exists
-    std::filesystem::create_directories(context_.outputPath);
+    try {
+        // ensure output dir exists
+        std::filesystem::create_directories(context_.outputPath);
+    } catch (const std::filesystem::filesystem_error &e) {
+        Logger::instance().error(
+            "Could not create output directory '" + context_.outputPath +
+            "': " + e.what() + "; skipping CSV write");
+        return;
+    }
 
-    auto now = std::chrono::system_clock::now();
+    const auto now = std::chrono::system_clock::now();
     const auto ts = std::format("{:%Y%m%d_%H%M%S}", now);
-    const auto filename = context_.outputPath + "/"
-                          + ts + "_"
-                          + context_.network.protocol + "_"
-                          + context_.name
-                          + ".csv";
+    const auto filename = context_.outputPath + "/" +
+                          ts + "_" +
+                          context_.network.protocol + "_" +
+                          context_.name + ".csv";
 
-    const utils::PivotCSVWriter writer(filename);
-    writer.write(metrics);
-    Logger::instance().info("Metrics written to " + filename);
+    try {
+        const utils::PivotCSVWriter writer(filename);
+        writer.write(metrics);
+        Logger::instance().info("Metrics written to " + filename);
+    } catch (const std::exception &e) {
+        Logger::instance().error(
+            "Failed to write metrics to CSV '" + filename + "': " +
+            e.what());
+    }
 }

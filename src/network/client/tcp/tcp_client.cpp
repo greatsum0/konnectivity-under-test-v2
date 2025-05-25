@@ -1,6 +1,7 @@
 // tcp_client.cpp
 #include "tcp_client.h"
 #include <iostream>
+#include <logger.h>
 
 TcpClient::TcpClient(asio::io_context &io_context,
                      const std::string &host,
@@ -114,4 +115,18 @@ void TcpClient::doWrite() {
                                                   }
                                               }
                                           }));
+}
+
+void TcpClient::syncSend(const std::string &message) {
+    boost::system::error_code ec;
+    auto full = message + "\n";
+    std::size_t n = boost::asio::write(socket_,
+                                       boost::asio::buffer(message),
+                                       ec);
+    if (ec) {
+        Logger::instance().error("TcpClient::syncSend error: " + ec.message());
+    } else {
+        Logger::instance().debug(
+            "TcpClient::syncSend sent " + std::to_string(n) + " bytes: " + full);
+    }
 }

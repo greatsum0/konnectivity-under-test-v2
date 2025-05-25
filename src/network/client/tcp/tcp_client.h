@@ -32,6 +32,8 @@ public:
 
     void setReceiveHandler(ReceiveHandler handler) override;
 
+    void syncSend(const std::string &message);
+
 private:
     enum class State {
         Disconnected,

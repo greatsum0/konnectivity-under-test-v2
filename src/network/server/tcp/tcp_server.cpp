@@ -94,3 +94,17 @@ void TcpServer::setReceiveHandler(ReceiveHandler handler) {
     // store it and hook it up to your async reads…
     receive_handler_ = std::move(handler);
 }
+
+void TcpServer::syncSend(const std::string &message) {
+    boost::system::error_code ec;
+    auto full = message + "\n";
+    // We assume the socket_ is already connected
+    std::size_t n = boost::asio::write(socket_,
+                                       boost::asio::buffer(full),
+                                       ec);
+    if (ec) {
+        Logger::instance().error("TcpServer::syncSend error: " + ec.message());
+    } else {
+        Logger::instance().debug("TcpServer::syncSend sent " + std::to_string(n) + " bytes");
+    }
+}

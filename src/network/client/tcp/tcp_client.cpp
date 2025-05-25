@@ -127,6 +127,6 @@ void TcpClient::syncSend(const std::string &message) {
         Logger::instance().error("TcpClient::syncSend error: " + ec.message());
     } else {
         Logger::instance().debug(
-            "TcpClient::syncSend sent " + std::to_string(n) + " bytes: " + full);
+            "TcpClient::syncSend sent " + std::to_string(n));
     }
 }

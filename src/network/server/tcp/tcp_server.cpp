@@ -105,6 +105,6 @@ void TcpServer::syncSend(const std::string &message) {
     if (ec) {
         Logger::instance().error("TcpServer::syncSend error: " + ec.message());
     } else {
-        Logger::instance().debug("TcpServer::syncSend sent " + std::to_string(n) + " bytes");
+        Logger::instance().debug("TcpServer::syncSend sent " + std::to_string(n));
     }
 }

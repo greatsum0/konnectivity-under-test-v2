@@ -28,59 +28,65 @@ std::shared_ptr<INetworkServer> ServerSession::createNetworkServer(boost::asio::
 
 
 int ServerSession::run() {
-    std::promise<void> scenarioDonePromise;
+    std::promise<void> scenarioDonePromise, scenarioReadyPromise, scenarioFinishedAckPromise;
     const auto scenarioDoneFuture = scenarioDonePromise.get_future();
+    const auto scenarioReadyFuture = scenarioReadyPromise.get_future();
+    const auto scenarioFinishedAckFuture = scenarioFinishedAckPromise.get_future();
     // Create a controller
     controller_ = std::make_shared<Controller>(*ioContext_,
-                                               [this, &scenarioDonePromise](const std::string &msg) {
+                                               [this, &scenarioDonePromise, &scenarioReadyPromise, &
+                                                   scenarioFinishedAckPromise](
+                                           const std::string &msg) {
                                                    if (msg.rfind("scenario:", 0) == 0) {
                                                        clientContext_ = YamlParser::parseClientContextFromString(msg);
-                                                       startAllMonitors();
                                                        Logger::instance().info(
                                                            "Received scenario: " + clientContext_.name);
-                                                       baseServer_ = createNetworkServer(
-                                                           *ioContext_, context_.network.port);
-                                                       Logger::instance().info("Network server created.");
-                                                       baseServer_->start();
-                                                       Logger::instance().info("Network server started.");
-                                                       controller_->send("server_ready");
-                                                       Logger::instance().info("Client notified of server readiness");
+                                                       scenarioReadyPromise.set_value();
                                                    } else if (msg.rfind("scenario_finished", 0) == 0) {
-                                                       Logger::instance().info("Acknowledging scenario finished");
-                                                       controller_->send("scenario_finished_ack");
+                                                       Logger::instance().info(
+                                                           "Received scenario_finished");
+                                                       scenarioFinishedAckPromise.set_value();
+
+                                                       Logger::instance().info("Sent scenario_finished_ack");
                                                        scenarioDonePromise.set_value();
-                                                   }  else {
+                                                   } else {
                                                        Logger::instance().debug("msg: " + msg);
                                                    }
                                                });
 
     try {
-        if (context_.network.protocol == "tcp") {
-            Logger::instance().info("Starting TCP server on port " + std::to_string(CONTROL_PORT));
-            controller_->startServer(CONTROL_PORT);
-        } else if (context_.network.protocol == "udp") {
-            Logger::instance().info("Starting UDP server on port " + std::to_string(CONTROL_PORT));
-            controller_->startServer(CONTROL_PORT);
-        } else {
-            Logger::instance().error("Unknown protocol: " + context_.network.protocol);
-            throw std::runtime_error("Unknown protocol: " + context_.network.protocol);
-        }
+        Logger::instance().info("Starting TCP controller server on port " + std::to_string(CONTROL_PORT));
+        controller_->startServer(CONTROL_PORT);
 
         // Run the I/O context
         std::thread io_thread([&]() {
             ioContext_->run();
         });
 
+
+        scenarioReadyFuture.wait();
+
+        startAllMonitors();
+        baseServer_ = createNetworkServer(
+            *ioContext_, context_.network.port);
+        baseServer_->start();
+        Logger::instance().info("Network server started on port " + std::to_string(context_.network.port));
+        controller_->send("server_ready");
+        Logger::instance().info("Sent server_ready");
+
+
+        scenarioFinishedAckFuture.wait();
+        controller_->send("scenario_finished_ack");
+        baseServer_->stop();
         // Wait for the scenario to finish
         scenarioDoneFuture.wait();
-        Logger::instance().info("Scenario finished, stopping server.");
+        Logger::instance().info("Handshake complete; stopping server.");
+
         controller_->stop();
-        baseServer_->stop();
         ioContext_->stop();
 
         if (io_thread.joinable())
             io_thread.join();
-
         stopAllMonitors();
         const auto allMetrics = combineMetrics();
         utils::PrettyPrinter::printPivotTable(allMetrics);

@@ -11,8 +11,14 @@
 #include <filesystem>
 #define CONTROL_PORT 6070
 
-ServerSession::ServerSession(ServerContext &context): context_(context), clientContext_(),
-                                                      ioContext_(std::make_shared<boost::asio::io_context>()) {
+
+ServerSession::ServerSession(ServerContext &context)
+    : context_(context), clientContext_(),
+      ioContext_(std::make_shared<boost::asio::io_context>()),
+      cpuIoContext_(std::make_shared<boost::asio::io_context>()),
+      networkIoContext_(std::make_shared<boost::asio::io_context>()),
+      cpuWorkGuard_(boost::asio::make_work_guard(*cpuIoContext_)),
+      networkWorkGuard_(boost::asio::make_work_guard(*networkIoContext_)) {
 }
 
 std::shared_ptr<INetworkServer> ServerSession::createNetworkServer(boost::asio::io_context &ioContext,
@@ -58,13 +64,48 @@ int ServerSession::run() {
         Logger::instance().info("Starting TCP controller server on port " + std::to_string(CONTROL_PORT));
         controller_->startServer(CONTROL_PORT);
 
-        // Run the I/O context
-        std::thread io_thread([&]() {
-            ioContext_->run();
-        });
+        auto workGuard = boost::asio::make_work_guard(*ioContext_);
+        // get core count
+        unsigned int numCores = std::thread::hardware_concurrency();
+        if (numCores == 0) numCores = 1;
+        Logger::instance().info("Launching " + std::to_string(numCores) + " IO threads");
+
+        // spawn & pin them
+        std::vector<std::thread> ioThreads;
+        ioThreads.reserve(numCores);
+        for (unsigned core = 0; core < numCores; ++core) {
+            ioThreads.emplace_back([this, core]() {
+                this->pinThread2Core(core);
+                ioContext_->run();
+            });
+        }
+
+        // spawn CPU and Network monitor threads for total isolation
+        unsigned int cpuCores = numCores / 2;
+        if (cpuCores == 0) cpuCores = 1;
+        unsigned int networkCores = numCores - cpuCores;
+        Logger::instance().info("Launching " + std::to_string(cpuCores) + " CPU monitor threads and "
+                                + std::to_string(networkCores) + " network monitor threads");
+
+        // CPU threads
+        for (unsigned core = 0; core < cpuCores; ++core) {
+            cpuThreads_.emplace_back([this, core]() {
+                this->pinThread2Core(core);
+                cpuIoContext_->run();
+            });
+        }
+        // Network threads
+        for (unsigned i = 0; i < networkCores; ++i) {
+            unsigned core = cpuCores + i;
+            networkThreads_.emplace_back([this, core]() {
+                this->pinThread2Core(core);
+                networkIoContext_->run();
+            });
+        }
 
 
         scenarioReadyFuture.wait();
+
 
         startAllMonitors();
         baseServer_ = createNetworkServer(
@@ -85,8 +126,15 @@ int ServerSession::run() {
         controller_->stop();
         ioContext_->stop();
 
-        if (io_thread.joinable())
-            io_thread.join();
+        // let run() return by dropping the work guard
+        workGuard.reset();
+        Logger::instance().info("Stopping IO context and joining threads...");
+        ioContext_->stop();
+
+        for (auto &t: ioThreads) {
+            if (t.joinable()) t.join();
+        }
+
         stopAllMonitors();
         const auto allMetrics = combineMetrics();
         utils::PrettyPrinter::printPivotTable(allMetrics);
@@ -103,6 +151,14 @@ int ServerSession::run() {
     return 0;
 }
 
+void ServerSession::pinThread2Core(unsigned coreId) {
+#ifdef __linux__
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(coreId, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+#endif
+}
 
 void ServerSession::startAllMonitors() {
     // network
@@ -153,10 +209,25 @@ void ServerSession::startAllMonitors() {
     Logger::instance().info("Monitors started");
 }
 
-void ServerSession::stopAllMonitors() const {
+void ServerSession::stopAllMonitors() {
     if (unifiedMonitorController_) unifiedMonitorController_->stop();
     if (networkMonitor_) networkMonitor_->stop();
     if (cpuMonitor_) cpuMonitor_->stop();
+
+    // teardown CPU pool
+    cpuWorkGuard_.reset();
+    if (cpuIoContext_) cpuIoContext_->stop();
+    for (auto &t: cpuThreads_) {
+        if (t.joinable()) t.join();
+    }
+
+    // teardown Network pool
+    networkWorkGuard_.reset();
+    if (networkIoContext_) networkIoContext_->stop();
+    for (auto &t: networkThreads_) {
+        if (t.joinable()) t.join();
+    }
+
     Logger::instance().info("Monitors stopped");
 }
 

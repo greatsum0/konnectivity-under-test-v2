@@ -17,6 +17,8 @@ public:
 
     [[nodiscard]] int run();
 
+    void pinThread2Core(unsigned coreId);
+
 private:
     ServerContext &context_;
 
@@ -34,6 +36,18 @@ private:
 
     std::unique_ptr<UnifiedMonitorController> unifiedMonitorController_;
 
+    // IO contexts for isolated monitoring
+    std::shared_ptr<boost::asio::io_context> cpuIoContext_;
+    std::shared_ptr<boost::asio::io_context> networkIoContext_;
+
+    // Work guards to keep IO contexts alive
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> cpuWorkGuard_;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> networkWorkGuard_;
+
+    // Threads dedicated to CPU and Network monitors
+    std::vector<std::thread> cpuThreads_;
+    std::vector<std::thread> networkThreads_;
+
     std::vector<std::unique_ptr<IMetricCollector> > cpuCollectors_;
 
     std::vector<std::unique_ptr<IMetricCollector> > networkCollectors_;
@@ -44,7 +58,7 @@ private:
 
     void startAllMonitors();
 
-    void stopAllMonitors() const;
+    void stopAllMonitors();
 
     std::vector<Metric> combineMetrics();
 

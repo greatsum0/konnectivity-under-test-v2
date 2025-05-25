@@ -124,7 +124,6 @@ int ServerSession::run() {
         Logger::instance().info("Handshake complete; stopping server.");
 
         controller_->stop();
-        ioContext_->stop();
 
         // let run() return by dropping the work guard
         workGuard.reset();

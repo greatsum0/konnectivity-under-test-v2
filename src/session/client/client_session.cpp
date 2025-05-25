@@ -52,8 +52,7 @@ int ClientSession::run() {
                                                            "Received server_ready, starting traffic setup");
                                                        readyPromise.set_value(); // wake up run()
                                                    } else if (msg == "scenario_finished_ack") {
-                                                       Logger::instance().info(
-                                                           "Received scenario_finished_ack");
+                                                       Logger::instance().info("Received scenario_finished_ack");
                                                        scenarioDonePromise.set_value();
                                                    } else {
                                                        Logger::instance().debug("msg: " + msg);
@@ -62,45 +61,67 @@ int ClientSession::run() {
 
     try {
         Logger::instance().info(
-            "Connecting to TCP communication server at " + context_.network.serverAddress + ":" + std::to_string(
-                CONTROL_PORT));
+            "Connecting to TCP communication server at "
+            + context_.network.serverAddress + ":"
+            + std::to_string(CONTROL_PORT));
         controller_->startClient(context_.network.serverAddress, CONTROL_PORT);
 
         auto workGuard = boost::asio::make_work_guard(*ioContext_);
         // get core count
         unsigned int numCores = std::thread::hardware_concurrency();
         if (numCores == 0) numCores = 1;
-        Logger::instance().info("Launching " + std::to_string(numCores) + " IO threads");
 
-        // spawn & pin them
         std::vector<std::thread> ioThreads;
-        ioThreads.reserve(numCores);
-        for (unsigned core = 0; core < numCores; ++core) {
-            ioThreads.emplace_back([this, core]() {
-                this->pinThread2Core(core);
+
+        if (numCores == 1) {
+            // single‐core: pin everything to core 0
+            Logger::instance().info(
+                "Single core detected; all threads will run on core 0");
+
+            Logger::instance().info("Launching 1 IO thread");
+            ioThreads.emplace_back([this]() {
+                this->pinThread2Core(0);
                 ioContext_->run();
             });
-        }
 
-        // spawn CPU and Network monitor threads for total isolation
-        unsigned int cpuCores = numCores / 2;
-        if (cpuCores == 0) cpuCores = 1;
-        unsigned int networkCores = numCores - cpuCores;
-        Logger::instance().info("Launching " + std::to_string(cpuCores) + " CPU monitor threads and "
-                                + std::to_string(networkCores) + " network monitor threads");
-
-        // CPU threads
-        for (unsigned core = 0; core < cpuCores; ++core) {
-            cpuThreads_.emplace_back([this, core]() {
-                this->pinThread2Core(core);
+            Logger::instance().info(
+                "Launching 1 CPU monitor thread and 1 network monitor thread");
+            cpuThreads_.emplace_back([this]() {
+                this->pinThread2Core(0);
                 cpuIoContext_->run();
             });
-        }
-        // Network threads
-        for (unsigned i = 0; i < networkCores; ++i) {
-            unsigned core = cpuCores + i;
-            networkThreads_.emplace_back([this, core]() {
-                this->pinThread2Core(core);
+            networkThreads_.emplace_back([this]() {
+                this->pinThread2Core(0);
+                networkIoContext_->run();
+            });
+        } else {
+            // we want exactly one core for CPU (0), one for network (1),
+            // and the rest for control I/O
+            unsigned int cpuCores = 1;
+            unsigned int networkCores = 1;
+            unsigned int controlCores = numCores > 2 ? numCores - 2 : 1;
+            Logger::instance().info("Launching "
+                                    + std::to_string(controlCores) + " IO threads");
+
+            ioThreads.reserve(controlCores);
+            // spawn & pin control I/O threads
+            for (unsigned core = 0; core < controlCores; ++core) {
+                unsigned actualCore = cpuCores + networkCores + core;
+                ioThreads.emplace_back([this, actualCore]() {
+                    this->pinThread2Core(actualCore);
+                    ioContext_->run();
+                });
+            }
+
+            // spawn exactly 1 CPU monitor thread and 1 network monitor thread
+            Logger::instance().info(
+                "Launching 1 CPU monitor thread and 1 network monitor thread");
+            cpuThreads_.emplace_back([this]() {
+                this->pinThread2Core(0);
+                cpuIoContext_->run();
+            });
+            networkThreads_.emplace_back([this]() {
+                this->pinThread2Core(1);
                 networkIoContext_->run();
             });
         }
@@ -161,7 +182,8 @@ int ClientSession::run() {
         networkCollectors_.clear();
     } catch (const std::exception &e) {
         Logger::instance().error("Exception: " + std::string(e.what()));
-        throw std::runtime_error("Failed to start client session: " + std::string(e.what()));
+        throw std::runtime_error("Failed to start client session: "
+                                 + std::string(e.what()));
     }
 
     return 0;

@@ -17,7 +17,7 @@ public:
 
     [[nodiscard]] int run();
 
-    void pinThread2Core(unsigned coreId);
+    static void pinThread2Core(unsigned coreId);
 
 private:
     ServerContext &context_;

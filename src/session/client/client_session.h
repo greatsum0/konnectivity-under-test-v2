@@ -30,8 +30,6 @@ public:
 
     std::vector<Metric> combineMetrics();
 
-    void writeToCsv(const std::vector<Metric> &metrics) const;
-
 private:
     ClientContext &context_;
     std::shared_ptr<boost::asio::io_context> ioContext_;

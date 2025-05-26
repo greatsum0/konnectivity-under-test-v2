@@ -69,12 +69,21 @@ void TcpClient::doConnect(const tcp::resolver::results_type &endpoints) {
                         asio::bind_executor(strand_,
                                             [this, self](const ErrorCode &ec, const tcp::endpoint &) {
                                                 if (ec) {
-                                                    std::cerr << "Connect error: " << ec.message() << "\n";
+                                                    Logger::instance().error("Connect error: " + ec.message());
                                                     socket_.close();
                                                     state_ = State::Disconnected;
                                                 } else {
+                                                    boost::asio::ip::tcp::no_delay noDelayOption(true);
+                                                    boost::system::error_code ec2;
+                                                    socket_.set_option(noDelayOption, ec2);
+                                                    if (ec2) {
+                                                        Logger::instance().warning(
+                                                            "Failed to set TCP_NODELAY: " + ec2.message());
+                                                    }
+
                                                     state_ = State::Connected;
                                                     doRead();
+
                                                     // flush any queued writes now that we're actually connected
                                                     if (!outbound_queue_.empty()) {
                                                         doWrite();
@@ -82,6 +91,7 @@ void TcpClient::doConnect(const tcp::resolver::results_type &endpoints) {
                                                 }
                                             }));
 }
+
 
 void TcpClient::doRead() {
     auto self = shared_from_this();

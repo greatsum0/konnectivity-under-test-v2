@@ -62,5 +62,4 @@ private:
 
     std::vector<Metric> combineMetrics();
 
-    void writeToCsv(const std::vector<Metric> &metrics) const;
 };

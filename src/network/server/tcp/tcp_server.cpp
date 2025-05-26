@@ -44,12 +44,20 @@ void TcpServer::doAccept() {
                            asio::bind_executor(strand_,
                                                [this, self](const ErrorCode &ec) {
                                                    if (ec) {
-                                                       std::cerr << "Accept error: " << ec.message() << '\n';
+                                                       Logger::instance().error("Accept error: " + ec.message());
                                                    } else {
+                                                       boost::system::error_code set_opt_ec;
+                                                       socket_.set_option(
+                                                           boost::asio::ip::tcp::no_delay(true), set_opt_ec);
+                                                       if (set_opt_ec) {
+                                                           Logger::instance().warning(
+                                                               "TCP_NODELAY set failed: " + ec.message());
+                                                       }
                                                        doRead();
                                                    }
                                                }));
 }
+
 
 void TcpServer::doRead() {
     auto self = shared_from_this();

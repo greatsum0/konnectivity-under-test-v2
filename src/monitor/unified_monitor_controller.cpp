@@ -31,7 +31,7 @@ void UnifiedMonitorController::tick() {
     const auto now = Clock::now();
 
     const CPUUsageSnapshot cpuSnapshot = cpuMonitor_->sample();
-    const PortTrafficMonitor::AggregateSample netSample = networkMonitor_->sample();
+    const AggregateSample netSample = networkMonitor_->sample();
 
     callback_(now, cpuSnapshot, netSample);
 

@@ -14,7 +14,7 @@ public:
     using Callback = std::function<void(
         Timestamp,
         const CPUUsageSnapshot &,
-        const PortTrafficMonitor::AggregateSample &
+        const AggregateSample &
     )>;
 
     UnifiedMonitorController(

@@ -9,6 +9,8 @@
 #include <udp_server.h>
 #include <yaml_parser.h>
 #include <filesystem>
+
+#include "metrics_io.h"
 #define CONTROL_PORT 6070
 
 
@@ -139,6 +141,11 @@ int ServerSession::run() {
         Logger::instance().info("Handshake complete; stopping server.");
 
         controller_->stop();
+        const auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::duration<double>(context_.measurement.intervalSec));
+
+        Logger::instance().info("Waiting extra interval for final metric collection...");
+        std::this_thread::sleep_for(interval);
 
         // let run() return by dropping the work guard
         workGuard.reset();
@@ -152,7 +159,8 @@ int ServerSession::run() {
         stopAllMonitors();
         const auto allMetrics = combineMetrics();
         utils::PrettyPrinter::printPivotTable(allMetrics);
-        writeToCsv(allMetrics);
+        utils::writeMetricsToCsv(allMetrics,context_.outputPath,
+                                 context_.name, context_.network.protocol);
 
         // 5) reset collectors for next run
         cpuCollectors_.clear();
@@ -201,12 +209,15 @@ void ServerSession::startAllMonitors() {
     unifiedMonitorController_->start(
         [this](std::chrono::system_clock::time_point ts,
                const CPUUsageSnapshot &cpuSnap,
-               const PortTrafficMonitor::AggregateSample &netSnap) {
+               const AggregateSample &netSnap) {
             for (const auto &c: networkCollectors_) {
                 c->onNetworkSample(
                     ts,
-                    netSnap.bytesIn, netSnap.bytesOut,
-                    netSnap.packetsIn, netSnap.packetsOut
+                    netSnap.bytesIn,
+                    netSnap.bytesOut,
+                    netSnap.packetsIn,
+                    netSnap.packetsOut,
+                    netSnap.throughputMbps
                 );
             }
             for (auto &c: cpuCollectors_) {
@@ -220,6 +231,7 @@ void ServerSession::startAllMonitors() {
             }
         }
     );
+
     Logger::instance().info("Monitors started");
 }
 
@@ -257,33 +269,4 @@ std::vector<Metric> ServerSession::combineMetrics() {
     cpuMetrics_.clear();
 
     return all;
-}
-
-void ServerSession::writeToCsv(const std::vector<Metric> &metrics) const {
-    try {
-        // ensure output dir exists
-        std::filesystem::create_directories(context_.outputPath);
-    } catch (const std::filesystem::filesystem_error &e) {
-        Logger::instance().error(
-            "Could not create output directory '" + context_.outputPath +
-            "': " + e.what() + "; skipping CSV write");
-        return;
-    }
-
-    const auto now = std::chrono::system_clock::now();
-    const auto ts = std::format("{:%Y%m%d_%H%M%S}", now);
-    const auto filename = context_.outputPath + "/" +
-                          ts + "_" +
-                          context_.network.protocol + "_" +
-                          context_.name + ".csv";
-
-    try {
-        const utils::PivotCSVWriter writer(filename);
-        writer.write(metrics);
-        Logger::instance().info("Metrics written to " + filename);
-    } catch (const std::exception &e) {
-        Logger::instance().error(
-            "Failed to write metrics to CSV '" + filename + "': " +
-            e.what());
-    }
 }

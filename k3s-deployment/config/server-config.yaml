@@ -15,7 +15,5 @@ data:
         interval_sec: 1  # Metric collection resolution (seconds)
         interface: "eth0"  # Network interface to be used
         metrics:
-          - total_cpu_util
-          - tool_cpu_util
-          - throughput
-          - bytes_transferred
+          - cpu_logger
+          - network_logger

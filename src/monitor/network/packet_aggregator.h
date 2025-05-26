@@ -11,6 +11,7 @@ public:
     explicit PacketAggregator(double intervalSec);
 
     void addPacket(const PacketRecord &packet);
+
     AggregateSample sample();
 
 private:

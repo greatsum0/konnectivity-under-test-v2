@@ -9,12 +9,14 @@ public:
     using Callback = std::function<void(const AggregateSample &)>;
 
     PortTrafficMonitor(std::string iface, uint16_t port, double intervalSec);
+
     ~PortTrafficMonitor();
 
     void start(Callback cb = nullptr);
+
     void stop();
 
-    AggregateSample sample();  // dış tetikleme ile snapshot + throughput
+    AggregateSample sample() const;
 
 private:
     std::string iface_;

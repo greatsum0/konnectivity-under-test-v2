@@ -10,16 +10,19 @@
 
 class PacketSniffer {
 public:
-    using PacketHandler = std::function<void(const PacketRecord&)>;
+    using PacketHandler = std::function<void(const PacketRecord &)>;
 
     PacketSniffer(std::string iface, uint16_t port);
+
     ~PacketSniffer();
 
     void start(PacketHandler handler);
+
     void stop();
 
 private:
     void runPcap();
+
     static void pcapCallback(u_char *user, const pcap_pkthdr *hdr, const u_char *packet);
 
     std::string iface_;

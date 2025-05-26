@@ -29,7 +29,7 @@ void PortTrafficMonitor::stop() {
     if (sniffer_) sniffer_->stop();
 }
 
-AggregateSample PortTrafficMonitor::sample() {
+AggregateSample PortTrafficMonitor::sample() const {
     if (!aggregator_) return {};
     return aggregator_->sample();
 }

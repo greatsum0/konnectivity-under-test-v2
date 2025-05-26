@@ -1,7 +1,8 @@
 #include "packet_aggregator.h"
 
 PacketAggregator::PacketAggregator(double intervalSec)
-    : intervalSec_(intervalSec) {}
+    : intervalSec_(intervalSec) {
+}
 
 void PacketAggregator::addPacket(const PacketRecord &packet) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -12,13 +13,12 @@ AggregateSample PacketAggregator::sample() {
     AggregateSample agg{};
     agg.timestamp = std::chrono::system_clock::now();
 
-    std::vector<PacketRecord> snapshot;
-    {
+    std::vector<PacketRecord> snapshot; {
         std::lock_guard<std::mutex> lock(mutex_);
         snapshot.swap(packetLog_);
     }
 
-    for (const auto &pkt : snapshot) {
+    for (const auto &pkt: snapshot) {
         if (pkt.isOut) {
             agg.bytesOut += pkt.size;
             agg.packetsOut++;

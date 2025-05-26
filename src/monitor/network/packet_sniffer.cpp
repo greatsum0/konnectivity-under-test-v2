@@ -82,9 +82,11 @@ void PacketSniffer::pcapCallback(u_char *user, const pcap_pkthdr *hdr, const u_c
     const u_char *ptr = packet;
 
     switch (self->linkType_) {
-        case DLT_EN10MB: ptr += kEthernetHeaderLen; break;
+        case DLT_EN10MB: ptr += kEthernetHeaderLen;
+            break;
         case DLT_NULL:
-        case DLT_LOOP: ptr += kLoopbackHeaderLen; break;
+        case DLT_LOOP: ptr += kLoopbackHeaderLen;
+            break;
         default: return;
     }
 

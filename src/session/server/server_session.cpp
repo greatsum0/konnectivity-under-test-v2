@@ -260,18 +260,30 @@ std::vector<Metric> ServerSession::combineMetrics() {
 }
 
 void ServerSession::writeToCsv(const std::vector<Metric> &metrics) const {
-    // ensure output dir exists
-    std::filesystem::create_directories(context_.outputPath);
+    try {
+        // ensure output dir exists
+        std::filesystem::create_directories(context_.outputPath);
+    } catch (const std::filesystem::filesystem_error &e) {
+        Logger::instance().error(
+            "Could not create output directory '" + context_.outputPath +
+            "': " + e.what() + "; skipping CSV write");
+        return;
+    }
 
-    auto now = std::chrono::system_clock::now();
+    const auto now = std::chrono::system_clock::now();
     const auto ts = std::format("{:%Y%m%d_%H%M%S}", now);
-    const auto filename = context_.outputPath + "/"
-                          + ts + "_"
-                          + context_.network.protocol + "_"
-                          + clientContext_.name
-                          + ".csv";
+    const auto filename = context_.outputPath + "/" +
+                          ts + "_" +
+                          context_.network.protocol + "_" +
+                          context_.name + ".csv";
 
-    const utils::PivotCSVWriter writer(filename);
-    writer.write(metrics);
-    Logger::instance().info("Metrics written to " + filename);
+    try {
+        const utils::PivotCSVWriter writer(filename);
+        writer.write(metrics);
+        Logger::instance().info("Metrics written to " + filename);
+    } catch (const std::exception &e) {
+        Logger::instance().error(
+            "Failed to write metrics to CSV '" + filename + "': " +
+            e.what());
+    }
 }

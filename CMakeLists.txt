@@ -22,6 +22,12 @@ if (NOT PCAP_LIB)
     message(FATAL_ERROR "libpcap not found; please install it (e.g., brew install libpcap).")
 endif()
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+if (NOT Threads_FOUND)
+    message(FATAL_ERROR "Threads not found")
+endif ()
+
 # Collect all the .cpp sources under src/
 file(GLOB_RECURSE KUT_SOURCES
         ${PROJECT_SOURCE_DIR}/src/main.cpp
@@ -116,6 +122,7 @@ target_link_libraries(${PROJECT_NAME}
         PRIVATE
         Boost::system
         Boost::thread
+        Threads::Threads
         yaml-cpp::yaml-cpp
         ${PCAP_LIB}
 )

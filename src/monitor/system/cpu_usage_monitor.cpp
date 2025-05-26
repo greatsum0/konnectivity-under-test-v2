@@ -4,6 +4,8 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+#include <chrono>
+#include <unistd.h>
 
 CPUUsageMonitor::CPUUsageMonitor(double intervalSec)
     : intervalSec_(intervalSec)
@@ -16,53 +18,36 @@ CPUUsageMonitor::CPUUsageMonitor(double intervalSec)
 {
 }
 
-CPUUsageMonitor::~CPUUsageMonitor() {
-    stop();
-}
+CPUUsageSnapshot CPUUsageMonitor::sample() {
+    double totalSum = 0.0;
+    std::vector<double> perCoreUsages;
+    double selfCpu = 0.0;
 
-void CPUUsageMonitor::start(ExtendedCallback cb) {
-    if (running_) {
-        std::cerr << "[WARN] CPUUsageMonitor already running.\n";
-        return;
-    }
-
-    callback_ = std::move(cb);
-    running_ = true;
-
-    timerThread_ = std::thread([this]() {
-        std::unique_lock<std::mutex> lock(mtx_);
-        while (running_) {
-            auto nextWake = std::chrono::steady_clock::now() + std::chrono::duration<double>(intervalSec_);
-            cv_.wait_until(lock, nextWake, [this] { return !running_; });
-
-            if (!running_) break;
-
-            double totalSum = 0.0;
-            std::vector<double> perCoreUsages = readPerCoreUsages(totalSum);
-            double selfCpu = readSelfCPUUsage();
-
-            double selfShareVsTotal = (totalSum > 0.0) ? (selfCpu / totalSum) * 100.0 : 0.0;
-            double selfShareVsSystemCap = (perCoreUsages.size() > 0)
-                                              ? (selfCpu / (perCoreUsages.size() * 100.0)) * 100.0
-                                              : 0.0;
-
-            if (callback_) {
-                CPUUsageSnapshot snapshot{perCoreUsages, totalSum, selfCpu, selfShareVsTotal, selfShareVsSystemCap};
-                callback_(snapshot);
-            }
-        }
-    });
-}
-
-void CPUUsageMonitor::stop() {
-    if (!running_) return;
-    running_ = false;
-    cv_.notify_all();
-    if (timerThread_.joinable()) timerThread_.join();
-}
-
-std::vector<double> CPUUsageMonitor::readPerCoreUsages(double &outSum) {
 #if __linux__
+    perCoreUsages = readPerCoreUsages(totalSum);
+    selfCpu = readSelfCPUUsage();
+#else
+    perCoreUsages = mockCoreUsages();
+    totalSum = 80.0;
+    selfCpu = mockSelfUsage();
+#endif
+
+    double selfShareVsTotal = (totalSum > 0.0) ? (selfCpu / totalSum) * 100.0 : 0.0;
+    double selfShareVsSystemCap = (!perCoreUsages.empty())
+                                      ? (selfCpu / (perCoreUsages.size() * 100.0)) * 100.0
+                                      : 0.0;
+
+    return CPUUsageSnapshot{
+        perCoreUsages,
+        totalSum,
+        selfCpu,
+        selfShareVsTotal,
+        selfShareVsSystemCap
+    };
+}
+
+#if __linux__
+std::vector<double> CPUUsageMonitor::readPerCoreUsages(double &outSum) {
     std::ifstream statFile("/proc/stat");
     std::string line;
     std::vector<double> usages;
@@ -108,14 +93,9 @@ std::vector<double> CPUUsageMonitor::readPerCoreUsages(double &outSum) {
 
     coreCount_ = usages.size();
     return usages;
-#else
-    outSum = 80.0;
-    return {20.0, 25.0, 15.0, 20.0};
-#endif
 }
 
 double CPUUsageMonitor::readSelfCPUUsage() {
-#if __linux__
     std::ifstream selfFile("/proc/self/stat");
     std::string line;
     if (!std::getline(selfFile, line)) return 0.0;
@@ -152,26 +132,13 @@ double CPUUsageMonitor::readSelfCPUUsage() {
     if (wallElapsed.count() <= 0.0) return 0.0;
 
     return (static_cast<double>(deltaJiffies) * 100.0) / (jiffiesPerSec * wallElapsed.count());
+}
 #else
-    return 18.0; // MOCK
+std::vector<double> CPUUsageMonitor::mockCoreUsages() const {
+    return {20.0, 25.0, 15.0, 20.0};
+}
+
+double CPUUsageMonitor::mockSelfUsage() const {
+    return 18.0;
+}
 #endif
-}
-
-CPUUsageSnapshot CPUUsageMonitor::sample() {
-    double totalSum = 0.0;
-    std::vector<double> perCoreUsages = readPerCoreUsages(totalSum);
-    double selfCpu = readSelfCPUUsage();
-
-    double selfShareVsTotal = (totalSum > 0.0) ? (selfCpu / totalSum) * 100.0 : 0.0;
-    double selfShareVsSystemCap = (!perCoreUsages.empty())
-                                      ? (selfCpu / (perCoreUsages.size() * 100.0)) * 100.0
-                                      : 0.0;
-
-    return CPUUsageSnapshot{
-        perCoreUsages,
-        totalSum,
-        selfCpu,
-        selfShareVsTotal,
-        selfShareVsSystemCap
-    };
-}

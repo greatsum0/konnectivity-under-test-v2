@@ -3,8 +3,7 @@
 #include <collector/network_collector.h>
 
 #include "imetric_collector.h"
-#include "self_cpu_collector.h"
-#include "total_cpu_collector.h"
+#include "system_collector.h"
 
 
 std::vector<std::unique_ptr<IMetricCollector> >
@@ -16,14 +15,8 @@ MetricCollectorFactory::create(const MeasurementConfig &config,
     for (auto const &name: cfg.metricNames) {
         if (name == "network_logger") {
             v.emplace_back(std::make_unique<NetworkCollector>(store));
-        }else if (name == "total_cpu_util") {
-            v.emplace_back(
-                std::make_unique<TotalCpuCollector>(store)
-            );
-        } else if (name == "tool_cpu_util") {
-            v.emplace_back(
-                std::make_unique<SelfCpuCollector>(store)
-            );
+        }if (name == "cpu_logger") {
+            v.emplace_back(std::make_unique<SystemCollector>(store));
         }
         // add more mappings here…
     }

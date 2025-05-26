@@ -238,7 +238,6 @@ void ServerSession::startAllMonitors() {
 void ServerSession::stopAllMonitors() {
     if (unifiedMonitorController_) unifiedMonitorController_->stop();
     if (networkMonitor_) networkMonitor_->stop();
-    if (cpuMonitor_) cpuMonitor_->stop();
 
     // teardown CPU pool
     cpuWorkGuard_.reset();

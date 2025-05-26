@@ -1,57 +1,32 @@
 #pragma once
 
-#include <thread>
-#include <atomic>
-#include <functional>
-#include <chrono>
 #include <vector>
 #include <mutex>
+#include <thread>
 #include <condition_variable>
-
-#if __linux__
-#include <unistd.h>
-#endif
-
-struct CPUUsageSnapshot {
-    std::vector<double> perCoreUsages;
-    double totalSum;
-    double selfCpu;
-    double selfShareVsTotal;
-    double selfShareVsSystemCap;
-};
+#include <functional>
+#include <metric_types.h>
 
 class CPUUsageMonitor {
 public:
-    using ExtendedCallback = std::function<void(const CPUUsageSnapshot &)>;
-
     explicit CPUUsageMonitor(double intervalSec);
-
-    ~CPUUsageMonitor();
-
-    void start(ExtendedCallback cb);
-
-    void stop();
-
     CPUUsageSnapshot sample();
 
 private:
-    std::vector<double> readPerCoreUsages(double &outSum);
-
-    double readSelfCPUUsage();
-
-    const double intervalSec_;
-    std::thread timerThread_;
-    std::atomic<bool> running_{false};
-    ExtendedCallback callback_;
-
-    std::mutex mtx_;
-    std::condition_variable cv_;
+    double intervalSec_;
 
 #if __linux__
-    long coreCount_;
     std::vector<long long> prevTotal_;
     std::vector<long long> prevIdle_;
+    int coreCount_;
+
     long long prevSelfJiffies_ = -1;
     std::chrono::steady_clock::time_point prevSelfTime_;
+
+    std::vector<double> readPerCoreUsages(double &outSum);
+    double readSelfCPUUsage();
+#else
+    std::vector<double> mockCoreUsages() const;
+    double mockSelfUsage() const;
 #endif
 };

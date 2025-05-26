@@ -18,6 +18,5 @@ scenario:
     interval_sec: 1.0  # Metric collection resolution (seconds)
     interface: "eth0"  # Network interface to be used
     metrics:
-      - total_cpu_util
-      - tool_cpu_util
+      - cpu_logger
       - network_logger

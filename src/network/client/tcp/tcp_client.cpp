@@ -29,7 +29,7 @@ void TcpClient::start() {
 void TcpClient::send(const std::string &message) {
     asio::post(strand_, [self = shared_from_this(), message]() {
         const bool wasEmpty = self->outbound_queue_.empty();
-        self->outbound_queue_.push_back(message + "\n");
+        self->outbound_queue_.push_back(message);
         if (self->state_ == State::Connected && wasEmpty) {
             self->doWrite();
         }

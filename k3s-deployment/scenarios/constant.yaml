@@ -18,5 +18,4 @@ scenario:
     metrics:
       - total_cpu_util
       - tool_cpu_util
-      - throughput
-      - bytes_transferred
+      - network_logger

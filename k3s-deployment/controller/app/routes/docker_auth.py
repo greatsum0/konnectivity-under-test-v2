@@ -1,7 +1,17 @@
 from flask import Blueprint, request, jsonify
-import subprocess
+from kubernetes import client, config
+from kubernetes.client.rest import ApiException
+import base64
+import json
 
 docker_auth_bp = Blueprint("docker_auth", __name__)
+
+try:
+    config.load_kube_config()
+except:
+    config.load_incluster_config()
+
+core_v1 = client.CoreV1Api()
 
 
 @docker_auth_bp.route("/auth/docker", methods=["POST"])
@@ -14,60 +24,63 @@ def docker_auth():
 
     if not username or not token or not namespace or not regcred:
         return (
-            jsonify({"error": "Missing required fields: username, token, namespace or regcred"}),
+            jsonify(
+                {
+                    "error": "Missing required fields: username, token, namespace or regcred"
+                }
+            ),
             400,
         )
 
     try:
-        # Namespace oluştur (yoksa)
-        create_ns = subprocess.run(
-            [
-                "kubectl",
-                "create",
-                "namespace",
-                namespace,
-                "--dry-run=client",
-                "-o",
-                "yaml",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        subprocess.run(
-            ["kubectl", "apply", "-f", "-"], input=create_ns.stdout, text=True
+        try:
+            core_v1.read_namespace(name=namespace)
+        except ApiException as e:
+            if e.status == 404:
+                ns_body = client.V1Namespace(
+                    metadata=client.V1ObjectMeta(name=namespace)
+                )
+                core_v1.create_namespace(body=ns_body)
+            else:
+                raise e
+
+        auth_data = {
+            "auths": {
+                "https://index.docker.io/v1/": {
+                    "username": username,
+                    "password": token,
+                    "auth": base64.b64encode(f"{username}:{token}".encode()).decode(),
+                }
+            }
+        }
+        docker_config_json = base64.b64encode(json.dumps(auth_data).encode()).decode()
+
+        secret = client.V1Secret(
+            metadata=client.V1ObjectMeta(name=regcred),
+            type="kubernetes.io/dockerconfigjson",
+            data={".dockerconfigjson": docker_config_json},
         )
 
-        # Docker secret oluştur veya güncelle
-        create_secret = subprocess.run(
-            [
-                "kubectl",
-                "create",
-                "secret",
-                "docker-registry",
-                regcred,
-                f"--docker-username={username}",
-                f"--docker-password={token}",
-                "-n",
-                namespace,
-                "--dry-run=client",
-                "-o",
-                "yaml",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        subprocess.run(
-            ["kubectl", "apply", "-f", "-"], input=create_secret.stdout, text=True
-        )
+        try:
+            core_v1.read_namespaced_secret(name=regcred, namespace=namespace)
+            core_v1.replace_namespaced_secret(
+                name=regcred, namespace=namespace, body=secret
+            )
+        except ApiException as e:
+            if e.status == 404:
+                core_v1.create_namespaced_secret(namespace=namespace, body=secret)
+            else:
+                raise e
 
         return (
-            jsonify(
-                {"status": "success", "secret": regcred, "namespace": namespace}
-            ),
+            jsonify({"status": "success", "secret": regcred, "namespace": namespace}),
             200,
         )
 
+    except ApiException as e:
+        return (
+            jsonify({"error": f"Kubernetes API error: {e.reason}", "details": e.body}),
+            e.status,
+        )
     except Exception as e:
         return jsonify({"error": f"Exception occurred: {str(e)}"}), 500

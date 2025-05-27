@@ -24,4 +24,7 @@ def create_app():
     app.register_blueprint(delete_bp)
     from .routes.cluster_status import cluster_status_bp
     app.register_blueprint(cluster_status_bp)
+    from .routes.docker_auth import docker_auth_bp
+    app.register_blueprint(docker_auth_bp)
+
     return app

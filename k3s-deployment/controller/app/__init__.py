@@ -6,9 +6,9 @@ def create_app():
     # Blueprint register
     from .routes.pods import pods_bp
     app.register_blueprint(pods_bp)
-    from .routes.configmap import configmap_bp
+    from .routes.generate_configmap import configmap_bp
     app.register_blueprint(configmap_bp)
-    from .routes.jobs import jobs_bp
+    from .routes.generate_jobs import jobs_bp
     app.register_blueprint(jobs_bp)
     from .routes.settings import settings_bp
     app.register_blueprint(settings_bp)

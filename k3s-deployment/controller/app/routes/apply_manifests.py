@@ -1,26 +1,35 @@
-# Flask Blueprints for configmap, job, pvc apply endpoints
+# Flask Blueprints for configmap, job, pvc, deployment, service apply endpoints
 from flask import Blueprint, request, jsonify
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from pathlib import Path
 import yaml
 
+# Load Kubernetes config
 try:
     config.load_kube_config()
 except:
     config.load_incluster_config()
 
+# API clients
 core_v1 = client.CoreV1Api()
 batch_v1 = client.BatchV1Api()
+apps_v1 = client.AppsV1Api()
 
+# Manifest directories
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIGMAP_DIR = BASE_DIR / "configmaps"
 JOBS_DIR = BASE_DIR / "jobs"
 VOLUME_DIR = BASE_DIR / "volumes"
+DEPLOYMENT_DIR = BASE_DIR / "deployments"
+SERVICE_DIR = BASE_DIR / "services"
 
+# Blueprints
 apply_configmap_bp = Blueprint("apply_configmap", __name__)
 apply_job_bp = Blueprint("apply_job", __name__)
 apply_pvc_bp = Blueprint("apply_pvc", __name__)
+apply_deployment_bp = Blueprint("apply_deployment", __name__)
+apply_service_bp = Blueprint("apply_service", __name__)
 
 
 # ---------------- ConfigMap -------------------
@@ -53,9 +62,33 @@ def apply_pvc():
     return apply_resource_batch(
         VOLUME_DIR,
         core_v1.read_namespaced_persistent_volume_claim,
-        None,  # PVC is immutable, skip replace
+        None,  # PVC is immutable
         core_v1.create_namespaced_persistent_volume_claim,
         "PersistentVolumeClaim",
+    )
+
+
+# ---------------- Deployment ------------------
+@apply_deployment_bp.route("/apply/deployment", methods=["POST"])
+def apply_deployment():
+    return apply_resource_batch(
+        DEPLOYMENT_DIR,
+        apps_v1.read_namespaced_deployment,
+        apps_v1.replace_namespaced_deployment,
+        apps_v1.create_namespaced_deployment,
+        "Deployment",
+    )
+
+
+# ---------------- Service ---------------------
+@apply_service_bp.route("/apply/service", methods=["POST"])
+def apply_service():
+    return apply_resource_batch(
+        SERVICE_DIR,
+        core_v1.read_namespaced_service,
+        core_v1.replace_namespaced_service,
+        core_v1.create_namespaced_service,
+        "Service",
     )
 
 
@@ -104,6 +137,7 @@ def apply_resource_batch(directory: Path, read_fn, replace_fn, create_fn, kind: 
                             }
                         )
                         continue
+
                     read_fn(name, namespace)
                     replace_fn(name, namespace, doc)
                     results.append(
@@ -130,7 +164,12 @@ def apply_resource_batch(directory: Path, read_fn, replace_fn, create_fn, kind: 
 
         except (ApiException, Exception) as e:
             results.append(
-                {"file": file_name, "kind": kind, "status": "failed", "error": str(e)}
+                {
+                    "file": file_name,
+                    "kind": kind,
+                    "status": "failed",
+                    "error": str(e),
+                }
             )
 
     return jsonify({"applied": results}), 200

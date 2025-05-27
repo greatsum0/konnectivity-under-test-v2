@@ -25,12 +25,13 @@ def apply_manifests():
     if m_type == "all":
         results.extend(apply_all_yamls(CONFIGMAP_DIR, "configmaps", namespace))
         results.extend(apply_all_yamls(JOBS_DIR, "jobs", namespace))
+        results.extend(apply_all_yamls(VOLUME_DIR, "volumes", namespace))
     elif m_type in ["configmaps", "jobs"]:
         if not files or not isinstance(files, list):
             return jsonify({"error": "Missing or invalid 'files' list."}), 400
         target_dir = CONFIGMAP_DIR if m_type == "configmaps" else JOBS_DIR
         results.extend(apply_selected_files(target_dir, files, m_type, namespace))
-    elif m_type in ["volumes", "all"]:
+    elif m_type in ["volumes"]:
         results.extend(apply_all_yamls(VOLUME_DIR, "volumes", namespace))
     else:
         return (

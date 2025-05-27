@@ -1,5 +1,4 @@
 from flask import Blueprint, jsonify, request
-from app.services.k8s_client import list_pods
 from kubernetes import client, config
 
 

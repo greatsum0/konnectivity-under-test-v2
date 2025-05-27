@@ -28,4 +28,6 @@ def create_app():
     app.register_blueprint(docker_auth_bp)
     from .routes.delete_manifests import delete_manifests_bp
     app.register_blueprint(delete_manifests_bp)
+    from .routes.cluster_reset import cluster_reset_bp
+    app.register_blueprint(cluster_reset_bp)
     return app

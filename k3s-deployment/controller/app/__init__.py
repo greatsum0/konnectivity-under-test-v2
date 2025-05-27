@@ -12,10 +12,12 @@ def create_app():
     app.register_blueprint(jobs_bp)
     from .routes.settings import settings_bp
     app.register_blueprint(settings_bp)
-    from .routes.apply_manifests import apply_configmap_bp, apply_job_bp, apply_pvc_bp
+    from .routes.apply_manifests import apply_configmap_bp, apply_job_bp, apply_pvc_bp, apply_deployment_bp, apply_service_bp
     app.register_blueprint(apply_configmap_bp)
     app.register_blueprint(apply_job_bp)
     app.register_blueprint(apply_pvc_bp)
+    app.register_blueprint(apply_deployment_bp)
+    app.register_blueprint(apply_service_bp)
     from .routes.namespaces import namespace_bp
     app.register_blueprint(namespace_bp)
     from .routes.status import status_bp

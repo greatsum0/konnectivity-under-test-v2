@@ -1,10 +1,19 @@
 from flask import Blueprint, request, jsonify
-import subprocess
-import json
+from kubernetes import client, config
+from kubernetes.client.rest import ApiException
 
-namespaces_bp = Blueprint("namespaces", __name__)
+namespace_bp = Blueprint("namespace", __name__)
 
-@namespaces_bp.route("/namespaces", methods=["POST"])
+# Kubernetes config yükle
+try:
+    config.load_kube_config()
+except:
+    config.load_incluster_config()
+
+core_v1 = client.CoreV1Api()
+
+
+@namespace_bp.route("/namespaces", methods=["POST"])
 def create_namespace():
     data = request.get_json()
     name = data.get("name")
@@ -12,33 +21,31 @@ def create_namespace():
     if not name:
         return jsonify({"error": "Missing 'name' field"}), 400
 
+    metadata = client.V1ObjectMeta(name=name)
+    ns_spec = client.V1Namespace(metadata=metadata)
+
     try:
-        subprocess.run(
-            ["kubectl", "create", "namespace", name],
-            check=True,
-            capture_output=True,
-            text=True
+        core_v1.create_namespace(ns_spec)
+        return jsonify({"namespace": name, "status": "created"}), 201
+
+    except ApiException as e:
+        if e.status == 409:  # AlreadyExists
+            return jsonify({"namespace": name, "status": "already_exists"}), 200
+        return (
+            jsonify({"error": f"Failed to create namespace", "details": e.body}),
+            e.status,
         )
-        return jsonify({"status": "created", "namespace": name}), 201
-
-    except subprocess.CalledProcessError as e:
-        if "AlreadyExists" in e.stderr:
-            return jsonify({"status": "exists", "namespace": name}), 200
-        return jsonify({"error": e.stderr.strip()}), 500
 
 
-@namespaces_bp.route("/namespaces", methods=["GET"])
+@namespace_bp.route("/namespaces", methods=["GET"])
 def list_namespaces():
     try:
-        result = subprocess.run(
-            ["kubectl", "get", "namespaces", "-o", "json"],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        output = json.loads(result.stdout)
-        namespaces = [item["metadata"]["name"] for item in output.get("items", [])]
+        ns_list = core_v1.list_namespace()
+        namespaces = [ns.metadata.name for ns in ns_list.items]
         return jsonify({"namespaces": namespaces}), 200
 
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": e.stderr.strip()}), 500
+    except ApiException as e:
+        return (
+            jsonify({"error": "Failed to list namespaces", "details": e.body}),
+            e.status,
+        )

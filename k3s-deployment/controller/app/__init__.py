@@ -16,8 +16,8 @@ def create_app():
     app.register_blueprint(apply_configmap_bp)
     app.register_blueprint(apply_job_bp)
     app.register_blueprint(apply_pvc_bp)
-    from .routes.namespaces import namespaces_bp
-    app.register_blueprint(namespaces_bp)
+    from .routes.namespaces import namespace_bp
+    app.register_blueprint(namespace_bp)
     from .routes.status import status_bp
     app.register_blueprint(status_bp)
     from .routes.pod_logs import logs_bp

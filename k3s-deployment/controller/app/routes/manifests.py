@@ -7,6 +7,8 @@ manifests_bp = Blueprint("manifests", __name__)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIGMAP_DIR = BASE_DIR / "configmaps"
 JOBS_DIR = BASE_DIR / "jobs"
+VOLUME_DIR = BASE_DIR / "volumes"
+
 
 @manifests_bp.route("/manifests/apply", methods=["POST"])
 def apply_manifests():
@@ -28,8 +30,13 @@ def apply_manifests():
             return jsonify({"error": "Missing or invalid 'files' list."}), 400
         target_dir = CONFIGMAP_DIR if m_type == "configmaps" else JOBS_DIR
         results.extend(apply_selected_files(target_dir, files, m_type, namespace))
+    if m_type in ["volumes", "all"]:
+        results.extend(apply_all_yamls(VOLUME_DIR, "volumes", namespace))
     else:
-        return jsonify({"error": "Invalid type. Must be 'all', 'jobs' or 'configmaps'."}), 400
+        return (
+            jsonify({"error": "Invalid type. Must be 'all', 'jobs' or 'configmaps'."}),
+            400,
+        )
 
     return jsonify({"applied": results}), 200
 
@@ -54,14 +61,11 @@ def apply_selected_files(directory: Path, file_list: list, label: str, namespace
                 ["kubectl", "apply", "-f", str(path), "-n", namespace],
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
             )
             applied.append({"type": label, "file": fname, "status": "applied"})
         except subprocess.CalledProcessError as e:
-            applied.append({
-                "type": label,
-                "file": fname,
-                "status": "failed",
-                "error": e.stderr
-            })
+            applied.append(
+                {"type": label, "file": fname, "status": "failed", "error": e.stderr}
+            )
     return applied

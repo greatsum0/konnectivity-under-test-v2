@@ -16,4 +16,12 @@ def create_app():
     app.register_blueprint(manifests_bp)
     from .routes.namespaces import namespaces_bp
     app.register_blueprint(namespaces_bp)
+    from .routes.status import status_bp
+    app.register_blueprint(status_bp)
+    from .routes.logs import logs_bp
+    app.register_blueprint(logs_bp)
+    from .routes.delete_job import delete_bp
+    app.register_blueprint(delete_bp)
+    from .routes.cluster_status import cluster_status_bp
+    app.register_blueprint(cluster_status_bp)
     return app

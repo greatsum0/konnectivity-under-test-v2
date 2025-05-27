@@ -4,8 +4,6 @@ from pathlib import Path
 SETTINGS_FILE = Path(__file__).resolve().parent.parent.parent / "settings.yaml"
 
 DEFAULTS = {
-    "DOCKER_AUTH_USERNAME": "",
-    "DOCKER_AUTH_TOKEN": "",
     "IMAGE_NAME": "kut/client",
     "IMAGE_TAG": "latest",
 }

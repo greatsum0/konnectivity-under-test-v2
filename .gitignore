@@ -40,3 +40,8 @@
 *.log
 
 .DS_Store
+
+settings.yaml
+
+k3s-deployment/controller/configmaps/*.yaml
+k3s-deployment/controller/jobs/*.yaml

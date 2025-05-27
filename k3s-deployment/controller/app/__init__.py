@@ -12,8 +12,10 @@ def create_app():
     app.register_blueprint(jobs_bp)
     from .routes.settings import settings_bp
     app.register_blueprint(settings_bp)
-    from .routes.apply_manifests import apply_manifest_bp
-    app.register_blueprint(apply_manifest_bp)
+    from .routes.apply_manifests import apply_configmap_bp, apply_job_bp, apply_pvc_bp
+    app.register_blueprint(apply_configmap_bp)
+    app.register_blueprint(apply_job_bp)
+    app.register_blueprint(apply_pvc_bp)
     from .routes.namespaces import namespaces_bp
     app.register_blueprint(namespaces_bp)
     from .routes.status import status_bp
@@ -28,4 +30,6 @@ def create_app():
     app.register_blueprint(delete_jobs_bp)
     from .routes.cluster_reset import cluster_reset_bp
     app.register_blueprint(cluster_reset_bp)
+    from .routes.list_job import list_jobs_bp
+    app.register_blueprint(list_jobs_bp)
     return app

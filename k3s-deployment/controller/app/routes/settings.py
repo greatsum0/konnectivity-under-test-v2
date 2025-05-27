@@ -3,9 +3,11 @@ from app.services.settings_manager import settings_manager
 
 settings_bp = Blueprint("settings", __name__)
 
+
 @settings_bp.route("/settings", methods=["GET"])
 def get_settings():
     return jsonify(settings_manager.get()), 200
+
 
 @settings_bp.route("/settings", methods=["POST"])
 def update_settings():

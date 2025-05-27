@@ -7,8 +7,9 @@ DEFAULTS = {
     "DOCKER_AUTH_USERNAME": "",
     "DOCKER_AUTH_TOKEN": "",
     "IMAGE_NAME": "kut/client",
-    "IMAGE_TAG": "latest"
+    "IMAGE_TAG": "latest",
 }
+
 
 class SettingsManager:
     def __init__(self):
@@ -32,6 +33,7 @@ class SettingsManager:
 
     def get(self):
         return self.settings.copy()
+
 
 # Global instance
 settings_manager = SettingsManager()

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kut-service-<scenario-name>
+  namespace: <namespace>
+spec:
+  selector:
+    app: kut-deploy-<scenario-name> # Deployment label
+  ports:
+    <port-definitions>
+  type: ClusterIP

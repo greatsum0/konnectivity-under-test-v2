@@ -1,9 +1,7 @@
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from pathlib import Path
-import tempfile
 import yaml
-from werkzeug.datastructures import FileStorage
 
 try:
     config.load_kube_config()
@@ -13,17 +11,30 @@ except:
 core_v1 = client.CoreV1Api()
 
 
-def generate_configmaps_from_uploaded_files(files: list[FileStorage], namespace: str):
+def generate_configmaps_from_scenarios(
+    scenarios: list[str], namespace: str = "default"
+):
+    SCENARIO_DIR = Path(__file__).resolve().parent.parent.parent / "scenarios"
     OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "configmaps"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
     results = []
-    for file in files:
-        filename = Path(file.filename)
-        stem = filename.stem
+
+    for scenario_file in scenarios:
+        scenario_path = SCENARIO_DIR / scenario_file
+        stem = Path(scenario_file).stem
         configmap_name = f"kut-{stem}-config"
 
-        file_content = file.read().decode("utf-8")
+        if not scenario_path.exists():
+            results.append(
+                {
+                    "name": configmap_name,
+                    "status": "failed",
+                    "error": f"File {scenario_file} not found",
+                }
+            )
+            continue
+
+        file_content = scenario_path.read_text()
 
         metadata = client.V1ObjectMeta(name=configmap_name, namespace=namespace)
         config_map = client.V1ConfigMap(
@@ -31,7 +42,7 @@ def generate_configmaps_from_uploaded_files(files: list[FileStorage], namespace:
         )
 
         try:
-            existing = core_v1.read_namespaced_config_map(configmap_name, namespace)
+            core_v1.read_namespaced_config_map(configmap_name, namespace)
             core_v1.replace_namespaced_config_map(configmap_name, namespace, config_map)
             action = "replaced"
         except ApiException as e:
@@ -51,15 +62,12 @@ def generate_configmaps_from_uploaded_files(files: list[FileStorage], namespace:
             "metadata": {"name": configmap_name, "namespace": namespace},
             "data": {"scenario.yaml": file_content},
         }
+
         with open(output_path, "w") as f:
             yaml.dump(yaml_output, f)
 
         results.append(
-            {
-                "name": configmap_name,
-                "output_path": str(output_path),
-                "status": action,
-            }
+            {"name": configmap_name, "output_path": str(output_path), "status": action}
         )
 
-    return {"results": results}
+    return {"namespace": namespace, "results": results}

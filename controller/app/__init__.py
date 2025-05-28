@@ -40,4 +40,6 @@ def create_app():
     app.register_blueprint(viewer_pods_bp)
     from .routes.generate_service import services_bp
     app.register_blueprint(services_bp)
+    from .routes.scenarios import scenarios_bp
+    app.register_blueprint(scenarios_bp)
     return app

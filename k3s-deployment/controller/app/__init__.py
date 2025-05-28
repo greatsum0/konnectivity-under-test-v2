@@ -34,4 +34,6 @@ def create_app():
     app.register_blueprint(cluster_reset_bp)
     from .routes.list_job import list_jobs_bp
     app.register_blueprint(list_jobs_bp)
+    from .routes.generate_deployment import deployments_bp
+    app.register_blueprint(deployments_bp)
     return app

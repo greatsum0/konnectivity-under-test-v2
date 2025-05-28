@@ -4,7 +4,7 @@ from kubernetes.client.rest import ApiException
 import base64
 import json
 
-docker_auth_bp = Blueprint("docker_auth", __name__)
+auth_bp = Blueprint("auth", __name__)
 
 try:
     config.load_kube_config()
@@ -14,7 +14,7 @@ except:
 core_v1 = client.CoreV1Api()
 
 
-@docker_auth_bp.route("/auth/docker", methods=["POST"])
+@auth_bp.route("/auth/docker", methods=["POST"])
 def docker_auth():
     data = request.get_json()
     username = data.get("username")

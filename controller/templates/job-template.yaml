@@ -24,9 +24,6 @@ spec:
             {% endfor %}
       restartPolicy: Never
       volumes:
-        - name: config-volume
-          configMap:
-            name: {{ configmap_name }}
         {% for volume in volumes %}
         - name: {{ volume.name }}
           {% if volume.type == 'pvc' %}
@@ -34,6 +31,9 @@ spec:
             claimName: {{ volume.claimName }}
           {% elif volume.type == 'emptyDir' %}
           emptyDir: {}
+          {% elif volume.type == 'configMap' %}
+          configMap:
+            name: {{ volume.claimName }}
           {% endif %}
         {% endfor %}
       imagePullSecrets:

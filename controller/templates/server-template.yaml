@@ -35,16 +35,11 @@ spec:
               hostPort: {{ port.hostPort }}
             {% endfor %}
           volumeMounts:
-            - name: config-volume
-              mountPath: /app/config
             {% for mount in volume_mounts %}
             - name: {{ mount.name }}
               mountPath: {{ mount.mountPath }}
             {% endfor %}
       volumes:
-        - name: config-volume
-          configMap:
-            name: {{ configmap_name }}
         {% for volume in volumes %}
         - name: {{ volume.name }}
           {% if volume.type == 'pvc' %}
@@ -52,6 +47,9 @@ spec:
             claimName: {{ volume.claimName }}
           {% elif volume.type == 'emptyDir' %}
           emptyDir: {}
+          {% elif volume.type == 'configMap' %}
+          configMap:
+            name: {{ volume.claimName }}
           {% endif %}
         {% endfor %}
       imagePullSecrets:

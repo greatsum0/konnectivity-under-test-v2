@@ -3,7 +3,7 @@ scenario:
   output_path: "/measurements/client"
   network:
     protocol: "tcp"
-    server_address: "kut-server"
+    server_address: "kut-service-server"
     server_port: 23456
   traffic_pattern:
     type: "pure_burst"  # This section specifies the traffic pattern type (constant, burst, random, etc.)

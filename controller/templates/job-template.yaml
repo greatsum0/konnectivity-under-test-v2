@@ -18,8 +18,10 @@ spec:
               /app/build/kut --mode client \
               --config /app/config/scenario.yaml
           volumeMounts:
-            - name: client-data
-              mountPath: /measurements/client
+            {% for mount in volume_mounts %}
+            - name: {{ mount.name }}
+              mountPath: {{ mount.mountPath }}
+            {% endfor %}
       restartPolicy: Never
       volumes:
         - name: config-volume

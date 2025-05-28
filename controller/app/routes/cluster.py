@@ -36,111 +36,137 @@ def reset_namespace():
         return jsonify({"error": str(e)}), 500
 
 
+from flask import Blueprint, request, jsonify
+from kubernetes import client, config
+from kubernetes.client.rest import ApiException
+from datetime import datetime
+
+cluster_bp = Blueprint("cluster", __name__)
+
+# Load Kubernetes config
+try:
+    config.load_kube_config()
+except:
+    config.load_incluster_config()
+
+core_v1 = client.CoreV1Api()
+apps_v1 = client.AppsV1Api()
+batch_v1 = client.BatchV1Api()
+events_v1 = client.EventsV1Api()
+
+
 @cluster_bp.route("/cluster/status", methods=["GET"])
 def cluster_status():
     namespace = request.args.get("namespace")
     if not namespace:
         return jsonify({"error": "Missing 'namespace' query parameter"}), 400
 
-    log_lines = []
-
-    def log(line=""):
-        log_lines.append(line)
-
-    def header(title):
-        log("")
-        log(f"--- {title} ---")
-
-    def print_resource_list(title, items, extract_func):
-        header(title)
-        if not items:
-            log("No resources found.")
-        else:
-            for item in items:
-                log(extract_func(item))
+    result = {
+        "namespace": namespace,
+        "nodes": [],
+        "deployments": [],
+        "jobs": [],
+        "pods": [],
+        "pvcs": [],
+        "pvs": [],
+        "secrets": [],
+        "configmaps": [],
+        "services": [],
+        "ingresses": [],
+        "events": [],
+    }
 
     try:
-        config.load_kube_config()
-    except Exception as e:
-        return jsonify({"error": f"Failed to load Kubernetes config: {str(e)}"}), 500
-
-    log(f"Cluster status for namespace: {namespace}")
+        result["nodes"] = [n.metadata.name for n in core_v1.list_node().items]
+    except:
+        pass
 
     try:
-        v1 = client.CoreV1Api()
-        batch = client.BatchV1Api()
-        apps = client.AppsV1Api()
-        networking = client.NetworkingV1Api()
+        deployments = apps_v1.list_namespaced_deployment(namespace)
+        result["deployments"] = [d.metadata.name for d in deployments.items]
+    except:
+        pass
 
-        print_resource_list("Nodes", v1.list_node().items, lambda n: n.metadata.name)
-        print_resource_list(
-            "Deployments",
-            apps.list_namespaced_deployment(namespace).items,
-            lambda d: d.metadata.name,
-        )
-        print_resource_list(
-            "Jobs",
-            batch.list_namespaced_job(namespace).items,
-            lambda j: f"{j.metadata.name} (status: {'Completed' if j.status.succeeded else 'Running'})",
-        )
-        print_resource_list(
-            "Pods",
-            v1.list_namespaced_pod(namespace).items,
-            lambda p: f"{p.metadata.name} (phase: {p.status.phase})",
-        )
-        print_resource_list(
-            "PVCs",
-            v1.list_namespaced_persistent_volume_claim(namespace).items,
-            lambda pvc: f"{pvc.metadata.name} (status: {pvc.status.phase})",
-        )
-        print_resource_list(
-            "PVs",
-            v1.list_persistent_volume().items,
-            lambda pv: f"{pv.metadata.name} (status: {pv.status.phase})",
-        )
-        print_resource_list(
-            "Secrets",
-            v1.list_namespaced_secret(namespace).items,
-            lambda s: s.metadata.name,
-        )
-        print_resource_list(
-            "ConfigMaps",
-            v1.list_namespaced_config_map(namespace).items,
-            lambda cm: cm.metadata.name,
-        )
-        print_resource_list(
-            "Services",
-            v1.list_namespaced_service(namespace).items,
-            lambda svc: svc.metadata.name,
-        )
+    try:
+        jobs = batch_v1.list_namespaced_job(namespace)
+        result["jobs"] = [
+            {
+                "name": j.metadata.name,
+                "status": (
+                    j.status.active and "Running" or "Completed"
+                    if j.status.succeeded
+                    else "Unknown"
+                ),
+            }
+            for j in jobs.items
+        ]
+    except:
+        pass
 
-        try:
-            print_resource_list(
-                "Ingresses",
-                networking.list_namespaced_ingress(namespace).items,
-                lambda i: i.metadata.name,
-            )
-        except ApiException as e:
-            if e.status == 404:
-                log("Ingress resource not available.")
-            else:
-                log(f"Failed to list ingresses: {e}")
+    try:
+        pods = core_v1.list_namespaced_pod(namespace)
+        result["pods"] = [
+            {"name": p.metadata.name, "phase": p.status.phase} for p in pods.items
+        ]
+    except:
+        pass
 
-        header("Events (last 10)")
-        events = v1.list_namespaced_event(namespace).items
-        events = sorted(
-            events,
-            key=lambda e: e.last_timestamp
-            or e.event_time
-            or e.metadata.creation_timestamp,
-            reverse=True,
-        )
-        for event in events[:10]:
-            log(
-                f"{event.last_timestamp} - {event.involved_object.kind}/{event.involved_object.name} - {event.message}"
-            )
+    try:
+        result["pvcs"] = [
+            p.metadata.name
+            for p in core_v1.list_namespaced_persistent_volume_claim(namespace).items
+        ]
+    except:
+        pass
 
-        return jsonify({"namespace": namespace, "log": "\n".join(log_lines)}), 200
+    try:
+        result["pvs"] = [
+            p.metadata.name for p in core_v1.list_persistent_volume().items
+        ]
+    except:
+        pass
 
-    except ApiException as e:
-        return jsonify({"error": f"Kubernetes API error: {str(e)}"}), 500
+    try:
+        result["secrets"] = [
+            s.metadata.name for s in core_v1.list_namespaced_secret(namespace).items
+        ]
+    except:
+        pass
+
+    try:
+        result["configmaps"] = [
+            c.metadata.name for c in core_v1.list_namespaced_config_map(namespace).items
+        ]
+    except:
+        pass
+
+    try:
+        result["services"] = [
+            s.metadata.name for s in core_v1.list_namespaced_service(namespace).items
+        ]
+    except:
+        pass
+
+    try:
+        networking_v1 = client.NetworkingV1Api()
+        result["ingresses"] = [
+            i.metadata.name
+            for i in networking_v1.list_namespaced_ingress(namespace).items
+        ]
+    except:
+        pass
+
+    try:
+        events = core_v1.list_namespaced_event(namespace, limit=10)
+        result["events"] = [
+            {
+                "timestamp": e.last_timestamp.isoformat() if e.last_timestamp else None,
+                "involved_object": f"{e.involved_object.kind}/{e.involved_object.name}",
+                "message": e.message,
+            }
+            for e in events.items
+        ]
+    except:
+        pass
+
+    return jsonify(result), 200

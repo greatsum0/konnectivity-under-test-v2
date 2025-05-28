@@ -1,0 +1,12 @@
+server:
+  name: "test_server"
+  output_path: "/measurements/server"
+  network:
+    protocol: "tcp"
+    port: 23456
+  metric_collection:
+    interval_sec: 1  # Metric collection resolution (seconds)
+    interface: "eth0"  # Network interface to be used
+    metrics:
+      - cpu_logger
+      - network_logger

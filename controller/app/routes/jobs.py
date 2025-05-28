@@ -10,31 +10,6 @@ batch_v1 = client.BatchV1Api()
 jobs_bp = Blueprint("jobs", __name__)
 
 
-@jobs_bp.route("/jobs/create", methods=["POST"])
-def create_jobs():
-    """
-    Create Kubernetes Jobs from a list of scenario file names.
-
-    JSON Payload:
-    {
-        "scenarios": ["scenario1.yaml", "scenario2.yaml"],
-        "namespace": "optional-namespace"
-    }
-    """
-    data = request.get_json()
-    scenarios = data.get("scenarios")
-    namespace = data.get("namespace", "default")
-
-    if not scenarios or not isinstance(scenarios, list):
-        return jsonify({"error": "Missing or invalid 'scenarios' list"}), 400
-
-    try:
-        result = generate_jobs_from_scenario_names(scenarios, namespace)
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
-
-
 @jobs_bp.route("/jobs", methods=["GET"])
 def list_jobs():
     """

@@ -5,7 +5,6 @@ import tempfile
 import yaml
 from werkzeug.datastructures import FileStorage
 
-# Kubernetes config yükle
 try:
     config.load_kube_config()
 except:
@@ -23,12 +22,9 @@ def generate_configmaps_from_uploaded_files(files: list[FileStorage], namespace:
     for file in files:
         filename = Path(file.filename)
         stem = filename.stem
-        configmap_name = f"kut-client-{stem}-config"
+        configmap_name = f"kut-{stem}-config"
 
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tmp_file:
-            file_content = file.read().decode("utf-8")
-            tmp_file.write(file_content)
-            tmp_file_path = tmp_file.name
+        file_content = file.read().decode("utf-8")
 
         metadata = client.V1ObjectMeta(name=configmap_name, namespace=namespace)
         config_map = client.V1ConfigMap(
@@ -36,29 +32,35 @@ def generate_configmaps_from_uploaded_files(files: list[FileStorage], namespace:
         )
 
         try:
-            core_v1.create_namespaced_config_map(namespace=namespace, body=config_map)
-
-            output_path = OUTPUT_DIR / f"{configmap_name}.yaml"
-            yaml_output = {
-                "apiVersion": "v1",
-                "kind": "ConfigMap",
-                "metadata": {"name": configmap_name, "namespace": namespace},
-                "data": {"scenario.yaml": file_content},
-            }
-            with open(output_path, "w") as f:
-                yaml.dump(yaml_output, f)
-
-            results.append(
-                {
-                    "name": configmap_name,
-                    "output_path": str(output_path),
-                    "status": "created",
-                }
-            )
-
+            existing = core_v1.read_namespaced_config_map(configmap_name, namespace)
+            core_v1.replace_namespaced_config_map(configmap_name, namespace, config_map)
+            action = "replaced"
         except ApiException as e:
-            results.append(
-                {"name": configmap_name, "status": "failed", "error": e.body}
-            )
+            if e.status == 404:
+                core_v1.create_namespaced_config_map(namespace, config_map)
+                action = "created"
+            else:
+                results.append(
+                    {"name": configmap_name, "status": "failed", "error": e.body}
+                )
+                continue
 
-    return {"created": results}
+        output_path = OUTPUT_DIR / f"{configmap_name}.yaml"
+        yaml_output = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": configmap_name, "namespace": namespace},
+            "data": {"scenario.yaml": file_content},
+        }
+        with open(output_path, "w") as f:
+            yaml.dump(yaml_output, f)
+
+        results.append(
+            {
+                "name": configmap_name,
+                "output_path": str(output_path),
+                "status": action,
+            }
+        )
+
+    return {"results": results}

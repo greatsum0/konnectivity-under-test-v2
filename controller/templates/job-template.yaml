@@ -21,12 +21,18 @@ spec:
             - name: client-data
               mountPath: /measurements/client
       restartPolicy: Never
-      imagePullSecrets:
-        - name: kut-regcred
       volumes:
-        - name: client-data
-          persistentVolumeClaim:
-            claimName: {{ pvc_name | default("client-pvc") }}
         - name: config-volume
           configMap:
             name: {{ configmap_name }}
+        {% for volume in volumes %}
+        - name: {{ volume.name }}
+          {% if volume.type == 'pvc' %}
+          persistentVolumeClaim:
+            claimName: {{ volume.claimName }}
+          {% elif volume.type == 'emptyDir' %}
+          emptyDir: {}
+          {% endif %}
+        {% endfor %}
+      imagePullSecrets:
+        - name: kut-regcred

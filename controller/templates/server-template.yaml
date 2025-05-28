@@ -17,7 +17,6 @@ spec:
         kubernetes.io/hostname: {{ node_name | default("raspberrypi-b") }}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-
       containers:
         - name: {{ name }}
           image: {{ image }}
@@ -42,7 +41,6 @@ spec:
             - name: {{ mount.name }}
               mountPath: {{ mount.mountPath }}
             {% endfor %}
-
       volumes:
         - name: config-volume
           configMap:
@@ -56,6 +54,5 @@ spec:
           emptyDir: {}
           {% endif %}
         {% endfor %}
-
       imagePullSecrets:
         - name: kut-regcred

@@ -11,17 +11,19 @@ except:
 
 apps_v1 = client.AppsV1Api()
 
-OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "deployments"
-TEMPLATE_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "templates" / "server-template.yaml"
-)
-
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def generate_server_deployments_from_scenario_names(
     scenarios: list[str], namespace: str = "default"
 ):
+    OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "deployments"
+    TEMPLATE_PATH = (
+        Path(__file__).resolve().parent.parent.parent
+        / "templates"
+        / "server-template.yaml"
+    )
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
     settings = settings_manager.get()
     image_name = settings.get("IMAGE_NAME")
     image_tag = settings.get("IMAGE_TAG", "latest")
@@ -46,9 +48,20 @@ def generate_server_deployments_from_scenario_names(
             deployment_manifest = yaml.safe_load(deployment_yaml)
             deployment_manifest["metadata"]["namespace"] = namespace
 
-            apps_v1.create_namespaced_deployment(
-                namespace=namespace, body=deployment_manifest
-            )
+            try:
+                apps_v1.read_namespaced_deployment(deployment_name, namespace)
+                apps_v1.replace_namespaced_deployment(
+                    deployment_name, namespace, deployment_manifest
+                )
+                action = "replaced"
+            except ApiException as e:
+                if e.status == 404:
+                    apps_v1.create_namespaced_deployment(
+                        namespace=namespace, body=deployment_manifest
+                    )
+                    action = "created"
+                else:
+                    raise e
 
             with open(output_path, "w") as f:
                 yaml.dump(deployment_manifest, f)
@@ -57,7 +70,7 @@ def generate_server_deployments_from_scenario_names(
                 {
                     "name": deployment_name,
                     "output_path": str(output_path),
-                    "status": "created",
+                    "status": action,
                 }
             )
 

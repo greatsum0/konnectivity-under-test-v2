@@ -12,13 +12,12 @@ except:
 
 core_v1 = client.CoreV1Api()
 
-OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "configmaps"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def generate_configmaps_from_uploaded_files(files: list[FileStorage], namespace: str):
-    results = []
+    OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "configmaps"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    results = []
     for file in files:
         filename = Path(file.filename)
         stem = filename.stem

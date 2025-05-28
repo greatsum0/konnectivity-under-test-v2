@@ -28,7 +28,7 @@ spec:
           args:
             - |
               /app/build/kut --mode server \
-              --config /app/config/server_config.yaml
+              --config /app/config/scenario.yaml
           ports:
             - name: traffic-port
               containerPort: 23456

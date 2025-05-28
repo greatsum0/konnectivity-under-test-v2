@@ -1,15 +1,11 @@
 from flask import Blueprint, request, jsonify
-from app.services.configmap_generator import generate_configmaps_from_scenarios
-from kubernetes import client, config
+from kubernetes import client
 from kubernetes.client.rest import ApiException
+from app.services.configmap_generator import generate_configmaps_from_scenarios
+from app.utils.kube_utils import load_kube_config
 
-configmap_bp = Blueprint("configmap", __name__)
-
-try:
-    config.load_kube_config()
-except:
-    config.load_incluster_config()
-
+# Load Kubernetes configuration
+load_kube_config()
 core_v1 = client.CoreV1Api()
 
 configmap_bp = Blueprint("configmap", __name__)
@@ -17,6 +13,15 @@ configmap_bp = Blueprint("configmap", __name__)
 
 @configmap_bp.route("/configmaps/create", methods=["POST"])
 def generate_configmaps():
+    """
+    Generate Kubernetes ConfigMaps based on scenario file names.
+
+    JSON Payload:
+    {
+        "scenarios": ["scenario1.yaml", "scenario2.yaml"],
+        "namespace": "optional-namespace"
+    }
+    """
     try:
         data = request.get_json()
         scenarios = data.get("scenarios")
@@ -29,11 +34,17 @@ def generate_configmaps():
         return jsonify(result), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 
 @configmap_bp.route("/configmaps", methods=["GET"])
 def list_configmaps():
+    """
+    List all ConfigMaps in the specified namespace.
+
+    Query Parameters:
+    - namespace: optional, defaults to "default"
+    """
     namespace = request.args.get("namespace", "default")
     results = []
 
@@ -44,7 +55,11 @@ def list_configmaps():
                 {
                     "name": cm.metadata.name,
                     "namespace": cm.metadata.namespace,
-                    "created_at": cm.metadata.creation_timestamp.isoformat(),
+                    "created_at": (
+                        cm.metadata.creation_timestamp.isoformat()
+                        if cm.metadata.creation_timestamp
+                        else None
+                    ),
                 }
             )
 
@@ -53,11 +68,20 @@ def list_configmaps():
     except ApiException as e:
         return jsonify({"error": "Kubernetes API error", "details": e.body}), 500
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 
 @configmap_bp.route("/configmaps/<string:name>", methods=["DELETE"])
 def delete_configmap(name):
+    """
+    Delete a specific ConfigMap by name.
+
+    URL Path:
+    - name: ConfigMap name
+
+    Query Parameters:
+    - namespace: optional, defaults to "default"
+    """
     namespace = request.args.get("namespace", "default")
 
     try:
@@ -74,6 +98,8 @@ def delete_configmap(name):
                 ),
                 404,
             )
+
         return jsonify({"error": "Kubernetes API error", "details": e.body}), 500
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500

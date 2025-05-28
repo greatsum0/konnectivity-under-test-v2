@@ -1,26 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kut-deploy-<scenario-name>
-  namespace: kut-app
+  name: {{ name }}
+  namespace: {{ namespace }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kut-deploy-<scenario-name>
+      app: {{ name }}
   template:
     metadata:
       labels:
-        app: kut-deploy-<scenario-name>
+        app: {{ name }}
     spec:
       nodeSelector:
-        kubernetes.io/hostname: raspberrypi-b
+        kubernetes.io/hostname: {{ node_name | default("raspberrypi-b") }}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
 
       containers:
-        - name: kut-deploy-<scenario-name>
-          image: placeholder/temp-image
+        - name: {{ name }}
+          image: {{ image }}
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -30,25 +30,32 @@ spec:
               /app/build/kut --mode server \
               --config /app/config/scenario.yaml
           ports:
-            - name: traffic-port
-              containerPort: 23456
-              hostPort: 23456
-            - name: ui-port
-              containerPort: 6070
-              hostPort: 6070
+            {% for port in ports %}
+            - name: {{ port.name }}
+              containerPort: {{ port.containerPort }}
+              hostPort: {{ port.hostPort }}
+            {% endfor %}
           volumeMounts:
-            - name: server-data
-              mountPath: /measurements/server
             - name: config-volume
               mountPath: /app/config
+            {% for mount in volume_mounts %}
+            - name: {{ mount.name }}
+              mountPath: {{ mount.mountPath }}
+            {% endfor %}
 
       volumes:
-        - name: server-data
-          persistentVolumeClaim:
-            claimName: server-pvc
         - name: config-volume
           configMap:
-            name: kut-<scenario-name>-config
+            name: {{ configmap_name }}
+        {% for volume in volumes %}
+        - name: {{ volume.name }}
+          {% if volume.type == 'pvc' %}
+          persistentVolumeClaim:
+            claimName: {{ volume.claimName }}
+          {% elif volume.type == 'emptyDir' %}
+          emptyDir: {}
+          {% endif %}
+        {% endfor %}
 
       imagePullSecrets:
         - name: kut-regcred

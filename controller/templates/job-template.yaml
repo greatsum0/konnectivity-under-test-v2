@@ -1,16 +1,16 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: kut-job-<scenario-name>
-  namespace: kut-app
+  name: {{ name }}
+  namespace: {{ namespace }}
 spec:
   template:
     spec:
       nodeSelector:
-        kubernetes.io/hostname: raspberrypi-a
+        kubernetes.io/hostname: {{ node_name | default("raspberrypi-a") }}
       containers:
         - name: kut-client
-          image: placeholder/temp-image
+          image: {{ image }}:{{ image_tag | default("latest") }}
           imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
           args:
@@ -28,7 +28,7 @@ spec:
       volumes:
         - name: client-data
           persistentVolumeClaim:
-            claimName: client-pvc
+            claimName: {{ pvc_name | default("client-pvc") }}
         - name: config-volume
           configMap:
-            name: kut-<scenario-name>-config
+            name: {{ configmap_name }}

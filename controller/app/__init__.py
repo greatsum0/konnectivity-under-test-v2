@@ -38,6 +38,6 @@ def create_app():
     app.register_blueprint(deployments_bp)
     from .routes.generate_viewer_pods import viewer_pods_bp
     app.register_blueprint(viewer_pods_bp)
-    from .routes.generate_service import service_bp
-    app.register_blueprint(service_bp)
+    from .routes.generate_service import services_bp
+    app.register_blueprint(services_bp)
     return app

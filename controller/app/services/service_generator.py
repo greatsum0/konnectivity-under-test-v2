@@ -3,6 +3,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 import yaml
 
+# Kubernetes config yükle
 try:
     config.load_kube_config()
 except:
@@ -10,46 +11,43 @@ except:
 
 core_v1 = client.CoreV1Api()
 
-TEMPLATE_PATH = (
-    Path(__file__).resolve().parent.parent.parent
-    / "templates"
-    / "service-template.yaml"
-)
-OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "services"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def generate_services_from_scenarios(
     scenarios: list[str], ports: list[dict], namespace: str = "default"
 ):
-    template_raw = TEMPLATE_PATH.read_text()
+
+    OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "services"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     results = []
 
-    port_lines = []
-    for port in ports:
-        port_lines.append(
-            f"    - name: {port['name']}\n"
-            f"      protocol: {port.get('protocol', 'TCP')}\n"
-            f"      port: {port['port']}\n"
-            f"      targetPort: {port.get('targetPort', port['port'])}"
-        )
-    ports_block = "\n".join(port_lines)
-
     for scenario in scenarios:
-        service_name = f"kut-server-{scenario}"
+        service_name = f"kut-service-{scenario}"
         filename = f"service-{scenario}.yaml"
         output_path = OUTPUT_DIR / filename
 
+        service_manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": service_name,
+                "namespace": namespace,
+            },
+            "spec": {
+                "selector": {"app": f"kut-deploy-{scenario}"},
+                "ports": [
+                    {
+                        "name": port["name"],
+                        "protocol": port.get("protocol", "TCP"),
+                        "port": port["port"],
+                        "targetPort": port.get("targetPort", port["port"]),
+                    }
+                    for port in ports
+                ],
+                "type": "ClusterIP",
+            },
+        }
+
         try:
-            service_yaml = (
-                template_raw.replace("<scenario-name>", scenario)
-                .replace("<namespace>", namespace)
-                .replace("<port-definitions>", ports_block)
-            )
-
-            service_manifest = yaml.safe_load(service_yaml)
-            service_manifest["metadata"]["namespace"] = namespace
-
             try:
                 core_v1.read_namespaced_service(service_name, namespace)
                 core_v1.replace_namespaced_service(

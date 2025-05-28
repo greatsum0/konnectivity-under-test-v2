@@ -20,8 +20,6 @@ spec:
           volumeMounts:
             - name: client-data
               mountPath: /measurements/client
-            - name: config-volume
-              mountPath: /app/config
       restartPolicy: Never
       imagePullSecrets:
         - name: kut-regcred

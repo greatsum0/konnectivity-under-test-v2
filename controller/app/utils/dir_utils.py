@@ -26,6 +26,7 @@ def get_dir(dir_type: str, ensure: bool = True) -> Path:
         "templates": root / "templates",
         "manifests": root / "manifests",
         "configmaps": root / "configmaps",
+        "jobs": root / "jobs",
     }
 
     if dir_type not in mapping:

@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 from app.utils.kube_utils import load_kube_config
+from app.utils.dir_utils import get_dir
+import shutil
 
 # Load Kubernetes configuration (from kubeconfig or in-cluster)
 load_kube_config()
@@ -19,13 +21,18 @@ cluster_bp = Blueprint("cluster", __name__)
 @cluster_bp.route("/cluster/reset", methods=["DELETE"])
 def reset_namespace():
     """
-    Deletes the given namespace if 'confirm' is True.
+    Deletes the given namespace and removes generated directories if 'confirm' is True.
 
     JSON payload:
     {
         "namespace": "example-ns",
         "confirm": true
     }
+
+    Returns:
+        - 202 Accepted: if deletion is triggered
+        - 400 Bad Request: if inputs are invalid
+        - 500 Internal Server Error: if Kubernetes API fails
     """
     data = request.get_json()
     namespace = data.get("namespace")
@@ -36,15 +43,35 @@ def reset_namespace():
 
     try:
         core_v1.delete_namespace(name=namespace)
-        return (
-            jsonify({"status": "namespace deletion initiated", "namespace": namespace}),
-            202,
-        )
-
     except ApiException as e:
         return jsonify({"error": "Kubernetes API error", "details": e.body}), 500
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+    # Remove entire generated directories
+    cleanup_dirs = ["scenarios", "manifests", "configmaps", "jobs"]
+    cleanup_warnings = []
+
+    for dir_type in cleanup_dirs:
+        try:
+            dir_path = get_dir(dir_type, ensure=False)
+            if dir_path.exists() and dir_path.is_dir():
+                shutil.rmtree(dir_path)
+        except Exception as e:
+            cleanup_warnings.append(
+                {"dir": dir_type, "warning": f"Failed to remove: {str(e)}"}
+            )
+
+    return (
+        jsonify(
+            {
+                "status": "namespace deletion initiated",
+                "namespace": namespace,
+                "cleanup_warnings": cleanup_warnings,
+            }
+        ),
+        202,
+    )
 
 
 @cluster_bp.route("/cluster/status", methods=["GET"])

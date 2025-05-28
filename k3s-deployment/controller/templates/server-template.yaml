@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kut-deploy-<scenario-name>
+  namespace: kut-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kut-deploy-<scenario-name>
+  template:
+    metadata:
+      labels:
+        app: kut-deploy-<scenario-name>
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: raspberrypi-b
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+
+      containers:
+        - name: kut-deploy-<scenario-name>
+          image: placeholder/temp-image
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              /app/build/kut --mode server \
+              --config /app/config/server_config.yaml
+          ports:
+            - name: traffic-port
+              containerPort: 23456
+              hostPort: 23456
+            - name: ui-port
+              containerPort: 6070
+              hostPort: 6070
+          volumeMounts:
+            - name: server-data
+              mountPath: /measurements/server
+            - name: config-volume
+              mountPath: /app/config
+
+      volumes:
+        - name: server-data
+          persistentVolumeClaim:
+            claimName: server-pvc
+        - name: config-volume
+          configMap:
+            name: kut-<scenario-name>-config
+
+      imagePullSecrets:
+        - name: kut-regcred

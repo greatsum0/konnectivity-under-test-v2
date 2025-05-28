@@ -31,4 +31,4 @@ spec:
             claimName: client-pvc
         - name: config-volume
           configMap:
-            name: kut-client-<scenario-name>-config
+            name: kut-<scenario-name>-config

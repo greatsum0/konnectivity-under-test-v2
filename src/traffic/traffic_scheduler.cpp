@@ -53,6 +53,9 @@ void TrafficScheduler::sendOne(const boost::system::error_code &ec) {
     // Send one packet
     //convert packet to string
     const std::string packetString(packetBuffer_.begin(), packetBuffer_.end());
+    const auto sendTime = std::chrono::system_clock::now();
+    const auto timestamp = getTimestampInSeconds(sendTime);
+    std::string encodedPacket = encodeTimestampAndPayload(timestamp, packetBuffer_);
     client_.send(packetString);
     ++packetsSent_;
 
@@ -65,4 +68,22 @@ void TrafficScheduler::sendOne(const boost::system::error_code &ec) {
     nextTime_ += delay;
     timer_.expires_at(nextTime_);
     timer_.async_wait([this](auto ec) { sendOne(ec); });
+}
+
+// Binary encode: double timestamp + payload → string
+std::string TrafficScheduler::encodeTimestampAndPayload(const double timestamp, const std::vector<uint8_t> &payload) {
+    std::string result;
+    result.resize(sizeof(double) + payload.size());
+
+    // write the timestamp as binary (first 8 bytes)
+    std::memcpy(&result[0], &timestamp, sizeof(double));
+
+    // append the payload data
+    std::memcpy(&result[sizeof(double)], payload.data(), payload.size());
+
+    return result;
+}
+
+double TrafficScheduler::getTimestampInSeconds(const std::chrono::system_clock::time_point timePoint) {
+    return duration_cast<std::chrono::duration<double> >(timePoint.time_since_epoch()).count();
 }

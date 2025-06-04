@@ -22,6 +22,10 @@ public:
 private:
     void sendOne(const boost::system::error_code &ec);
 
+    static std::string encodeTimestampAndPayload(double timestamp, const std::vector<uint8_t> &payload);
+
+    static double getTimestampInSeconds(std::chrono::system_clock::time_point timePoint);
+
     boost::asio::io_context &io_;
     INetworkClient &client_;
     ClientContext context_;

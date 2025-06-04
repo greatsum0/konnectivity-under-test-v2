@@ -13,7 +13,8 @@ struct IMetricCollector {
         uint64_t bytesIn,
         uint64_t bytesOut,
         uint64_t packetsIn,
-        uint64_t packetsOut, uint64_t throughput
+        uint64_t packetsOut,
+        double throughput
     ) {
         // default no-op
     }

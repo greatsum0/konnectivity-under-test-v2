@@ -16,7 +16,7 @@ public:
 
     void stop();
 
-    AggregateSample sample() const;
+    [[nodiscard]] AggregateSample sample() const;
 
 private:
     std::string iface_;

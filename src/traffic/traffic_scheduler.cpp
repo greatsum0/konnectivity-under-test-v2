@@ -56,7 +56,7 @@ void TrafficScheduler::sendOne(const boost::system::error_code &ec) {
     const auto sendTime = std::chrono::system_clock::now();
     const auto timestamp = getTimestampInSeconds(sendTime);
     std::string encodedPacket = encodeTimestampAndPayload(timestamp, packetBuffer_);
-    client_.send(packetString);
+    client_.send(encodedPacket);
     ++packetsSent_;
 
     // Compute delay until next send

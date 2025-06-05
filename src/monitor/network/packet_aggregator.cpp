@@ -1,4 +1,5 @@
 #include "packet_aggregator.h"
+#include <logger.h>
 
 PacketAggregator::PacketAggregator(double intervalSec)
     : intervalSec_(intervalSec) {
@@ -11,17 +12,13 @@ void PacketAggregator::addPacket(const PacketRecord &packet) {
 
 AggregateSample PacketAggregator::sample() {
     AggregateSample agg{};
-    agg.timestamp = std::chrono::system_clock::now();
-
-    std::vector<PacketRecord> snapshot;
-    {
+    std::vector<PacketRecord> snap; {
         std::lock_guard<std::mutex> lock(mutex_);
-        snapshot.swap(packetLog_);
+        snap.swap(packetLog_);
     }
-
-    std::vector<std::chrono::microseconds> latencies;
-    std::chrono::system_clock::duration latencySum = {};
-    for (const auto &pkt: snapshot) {
+    std::vector<int64_t> latencies;
+    int64_t latencySumUs = 0;
+    for (auto &pkt: snap) {
         if (pkt.isOut) {
             agg.bytesOut += pkt.size;
             agg.packetsOut++;
@@ -29,37 +26,23 @@ AggregateSample PacketAggregator::sample() {
             agg.bytesIn += pkt.size;
             agg.packetsIn++;
         }
-
-        const auto latency = pkt.timestamp - pkt.embeddedTimestamp;
-        latencies.push_back(std::chrono::duration_cast<std::chrono::microseconds>(latency));
-        latencySum += latency;
+        int64_t latUs = pkt.timestamp - pkt.embeddedTimestamp;
+        latencies.push_back(latUs);
+        latencySumUs += latUs;
     }
-
     const double totalBits = static_cast<double>(agg.bytesIn + agg.bytesOut) * 8.0;
-    agg.throughputMbps = totalBits / (intervalSec_ * 1'000'000.0);
-
-    // Jitter is calculated as the Mean Absolute Deviation (MAD) of one-way latencies.
-    // Let L = {l₁, l₂, ..., lₙ} be the set of one-way latencies in microseconds.
-    // Let μ = (1/n) * Σ lᵢ  be the mean latency.
-    // Then, jitter = (1/n) * Σ |lᵢ - μ|
-    // This provides a robust, intuitive measure of latency variation per RFC 5481 principles.
-
+    agg.throughputMbps = totalBits / (intervalSec_ * 1000000.0);
     if (!latencies.empty()) {
-        agg.latency = latencySum / snapshot.size();
-
-        // Mean absolute deviation (Jitter)
-        const auto meanLatency = std::chrono::duration_cast<std::chrono::microseconds>(agg.latency).count();
+        const int64_t meanLatUs = latencySumUs / static_cast<int64_t>(latencies.size());
+        agg.latency = meanLatUs;
         double jitterSum = 0.0;
-
-        for (const auto &lat : latencies) {
-            jitterSum += std::abs(lat.count() - meanLatency);
+        for (const auto &l: latencies) {
+            jitterSum += static_cast<double>(std::abs(l - meanLatUs));
         }
-
-        agg.jitterUs = jitterSum / latencies.size();
+        agg.jitterUs = jitterSum / static_cast<double>(latencies.size());
     } else {
-        agg.latency = std::chrono::system_clock::duration::zero();
+        agg.latency = 0;
         agg.jitterUs = 0.0;
     }
-
     return agg;
 }

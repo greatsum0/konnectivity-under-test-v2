@@ -14,6 +14,7 @@ struct AggregateSample {
     size_t packetsOut = 0;
     double throughputMbps = 0.0;
     std::chrono::system_clock::duration latency{};
+    double jitterUs = 0.0;
 };
 
 

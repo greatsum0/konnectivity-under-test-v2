@@ -12,8 +12,8 @@ void SystemCollector::onCpuSample(
     lastTotalCpu_ = totalCpu;
     lastSelfCpu_ = selfCpu;
 
-    _store.push_back({ts, "total_cpu_util", totalCpu});
-    _store.push_back({ts, "tool_cpu_util", selfCpu});
+    _store.push_back({ts, "cpu.util.host", totalCpu});
+    _store.push_back({ts, "cpu.util.self", selfCpu});
 }
 
 void SystemCollector::onCpuDetailSample(
@@ -22,13 +22,13 @@ void SystemCollector::onCpuDetailSample(
     double selfShareVsTotal,
     double selfShareVsSystemCap
 ) {
-    _store.push_back({ts, "self_share_/_total_load_%", selfShareVsTotal});
-    _store.push_back({ts, "self_share_/_system_cap_%", selfShareVsSystemCap});
-    _store.push_back({ts, "sum_cores_%", lastTotalCpu_});
-    _store.push_back({ts, "cpu_self_%", lastSelfCpu_});
+    _store.push_back({ts, "cpu.share.self_vs_host_load.perc", selfShareVsTotal});
+    _store.push_back({ts, "cpu.share.self_vs_system_capacity.perc", selfShareVsSystemCap});
+    _store.push_back({ts, "cpu.util.cores.sum.perc", lastTotalCpu_});
+    _store.push_back({ts, "cpu.util.self.perc", lastSelfCpu_});
 
     for (size_t i = 0; i < perCore.size(); ++i) {
-        const std::string label = "cpu" + std::to_string(i) + "_%";
+        const std::string label = "cpu.util.core." + std::to_string(i) + ".perc";
         _store.push_back({ts, label, perCore[i]});
     }
 }

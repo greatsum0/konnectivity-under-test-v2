@@ -14,8 +14,7 @@ void PortTrafficMonitor::start(Callback cb) {
 
     aggregator_ = std::make_unique<PacketAggregator>(intervalSec_);
 
-    sniffer_ = std::make_unique<PacketSniffer>(
-        iface_, port_);
+    sniffer_ = std::make_unique<PacketSniffer>(iface_, port_);
 
     sniffer_->start([this](const PacketRecord &rec) {
         aggregator_->addPacket(rec);

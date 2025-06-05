@@ -94,25 +94,37 @@ void PacketSniffer::pcapCallback(u_char *user, const pcap_pkthdr *hdr, const u_c
     const int ipLenBytes = iph->ip_hl * 4;
 
     int payloadLen = 0;
+    int transportHeaderLen = 0;
     if (iph->ip_p == IPPROTO_TCP) {
         const auto *tcph = reinterpret_cast<const tcphdr *>(ptr + ipLenBytes);
-        payloadLen = ntohs(iph->ip_len) - ipLenBytes - (tcph->th_off * 4);
+        transportHeaderLen = tcph->th_off * 4;
+        payloadLen = ntohs(iph->ip_len) - ipLenBytes - transportHeaderLen;
     } else if (iph->ip_p == IPPROTO_UDP) {
         const auto *udph = reinterpret_cast<const udphdr *>(ptr + ipLenBytes);
-        payloadLen = ntohs(udph->uh_ulen) - sizeof(udphdr);
+        transportHeaderLen = sizeof(udphdr);
+        payloadLen = ntohs(udph->uh_ulen) - transportHeaderLen;
     } else {
         return;
     }
 
     if (payloadLen <= 0) return;
 
+    const u_char *payloadPtr = ptr + ipLenBytes + transportHeaderLen;
+
     const bool isOut = (iph->ip_src.s_addr == self->localAddr_);
     const auto ts = std::chrono::system_clock::time_point{
         std::chrono::seconds(hdr->ts.tv_sec) + std::chrono::microseconds(hdr->ts.tv_usec)
     };
 
-    PacketRecord rec{ts, static_cast<size_t>(payloadLen), isOut};
+    std::chrono::system_clock::time_point embeddedTimestamp;
+    if (payloadLen >= static_cast<int>(sizeof(std::chrono::system_clock::time_point))) {
+        std::memcpy(&embeddedTimestamp, payloadPtr, sizeof(std::chrono::system_clock::time_point));
+    } else {
+        embeddedTimestamp = ts;
+    }
+
+    const PacketRecord record{ts, embeddedTimestamp, static_cast<size_t>(payloadLen), isOut};
     if (self->packetHandler_) {
-        self->packetHandler_(rec);
+        self->packetHandler_(record);
     }
 }

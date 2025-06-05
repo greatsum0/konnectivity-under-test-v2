@@ -2,8 +2,8 @@
 #include <chrono>
 
 struct PacketRecord {
-    std::chrono::system_clock::time_point timestamp;
-    std::chrono::system_clock::time_point embeddedTimestamp;
+    int64_t timestamp;
+    int64_t embeddedTimestamp;
     size_t size{};
     bool isOut{};
 };

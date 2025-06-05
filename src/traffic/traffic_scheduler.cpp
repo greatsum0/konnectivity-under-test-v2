@@ -13,13 +13,13 @@ TrafficScheduler::TrafficScheduler(boost::asio::io_context &io,
       context_(context),
       pattern_(pattern),
       timer_(io_),
-      packetBuffer_(context.traffic.packetSize - sizeof(std::chrono::time_point<std::chrono::system_clock>), 0xAB),
+      packetBuffer_(context.traffic.packetSize - sizeof(int64_t), 0xAB),
       onFinish_(std::move(onFinish)) {
     maxPackets_ = pattern_.computeMaxPackets(
         context_.traffic.durationSec,
         context_.traffic.packetSize);
 
-    constexpr size_t headerSize = sizeof(std::chrono::time_point<std::chrono::system_clock>);
+    constexpr size_t headerSize = sizeof(int64_t);
     const size_t payloadSize = packetBuffer_.size();
     sendBuffer_.resize(headerSize + payloadSize);
 
@@ -42,14 +42,12 @@ void TrafficScheduler::start() {
 void TrafficScheduler::sendOne(const boost::system::error_code &ec) {
     if (ec) return;
 
-    // Stop if we sent too many packets
     if (packetsSent_ >= maxPackets_) {
         Logger::instance().info("Max packets reached, finishing traffic.");
         if (onFinish_) onFinish_();
         return;
     }
 
-    // Stop if duration elapsed
     auto now = std::chrono::steady_clock::now();
     double elapsed = std::chrono::duration<double>(now - startTime_).count();
     if (elapsed >= context_.traffic.durationSec) {
@@ -58,25 +56,22 @@ void TrafficScheduler::sendOne(const boost::system::error_code &ec) {
         return;
     }
 
-    // Send one packet
-    //convert packet to string
-    const std::string packetString(packetBuffer_.begin(), packetBuffer_.end());
-    const auto sendTime = std::chrono::system_clock::now();
-    std::memcpy(&sendBuffer_[0], &sendTime, sizeof(std::chrono::time_point<std::chrono::system_clock>));
+    int64_t embeddedUs = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+    ).count();
+    std::memcpy(&sendBuffer_[0], &embeddedUs, sizeof(int64_t));
     client_.send(sendBuffer_);
     ++packetsSent_;
 
-    // Compute delay until next send
     const auto delay = pattern_.generateDelay(
         context_.traffic.packetSize,
         context_.traffic.intervalSec);
 
-    // Schedule next send
     nextTime_ += delay;
     timer_.expires_at(nextTime_);
     timer_.async_wait([this](auto ec) { sendOne(ec); });
 }
 
 double TrafficScheduler::getTimestampInSeconds(const std::chrono::system_clock::time_point timePoint) {
-    return duration_cast<std::chrono::duration<double> >(timePoint.time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::duration<double> >(timePoint.time_since_epoch()).count();
 }

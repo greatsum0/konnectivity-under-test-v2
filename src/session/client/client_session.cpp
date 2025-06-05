@@ -241,7 +241,7 @@ void ClientSession::startAllMonitors() {
                     netSnap.packetsIn,
                     netSnap.packetsOut,
                     netSnap.throughputMbps,
-                    static_cast<double>(netSnap.latency.count()),
+                    static_cast<double>(netSnap.latency),
                     netSnap.jitterUs
                 );
             }

@@ -1,7 +1,5 @@
 #include "packet_aggregator.h"
 
-#include <iostream>
-
 PacketAggregator::PacketAggregator(double intervalSec)
     : intervalSec_(intervalSec) {
 }

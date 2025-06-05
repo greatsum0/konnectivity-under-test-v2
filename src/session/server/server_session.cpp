@@ -217,7 +217,8 @@ void ServerSession::startAllMonitors() {
                     netSnap.bytesOut,
                     netSnap.packetsIn,
                     netSnap.packetsOut,
-                    netSnap.throughputMbps
+                    netSnap.throughputMbps,
+                    static_cast<double>(netSnap.latency.count())
                 );
             }
             for (auto &c: cpuCollectors_) {

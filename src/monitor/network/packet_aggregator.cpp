@@ -1,5 +1,7 @@
 #include "packet_aggregator.h"
 
+#include <iostream>
+
 PacketAggregator::PacketAggregator(double intervalSec)
     : intervalSec_(intervalSec) {
 }
@@ -18,6 +20,7 @@ AggregateSample PacketAggregator::sample() {
         snapshot.swap(packetLog_);
     }
 
+    std::chrono::system_clock::duration latencySum = {};
     for (const auto &pkt: snapshot) {
         if (pkt.isOut) {
             agg.bytesOut += pkt.size;
@@ -26,10 +29,18 @@ AggregateSample PacketAggregator::sample() {
             agg.bytesIn += pkt.size;
             agg.packetsIn++;
         }
+        latencySum += pkt.timestamp - pkt.embeddedTimestamp;
     }
 
     const double totalBits = static_cast<double>(agg.bytesIn + agg.bytesOut) * 8.0;
     agg.throughputMbps = totalBits / (intervalSec_ * 1'000'000.0);
+
+    // Calculate average latency if there are packets
+    if (!snapshot.empty()) {
+        agg.latency = latencySum / snapshot.size();
+    } else {
+        agg.latency = std::chrono::system_clock::duration::zero();
+    }
 
     return agg;
 }

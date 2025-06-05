@@ -1,6 +1,6 @@
 // src/traffic_scheduler.cpp
 #include "traffic_scheduler.h"
-
+#include <algorithm>
 #include <logger.h>
 
 TrafficScheduler::TrafficScheduler(boost::asio::io_context &io,
@@ -13,12 +13,20 @@ TrafficScheduler::TrafficScheduler(boost::asio::io_context &io,
       context_(context),
       pattern_(pattern),
       timer_(io_),
-      packetBuffer_(context.traffic.packetSize, 0xAB),
+      packetBuffer_(context.traffic.packetSize - sizeof(double), 0xAB),
       onFinish_(std::move(onFinish)) {
     maxPackets_ = pattern_.computeMaxPackets(
         context_.traffic.durationSec,
         context_.traffic.packetSize);
 
+    constexpr size_t headerSize = sizeof(double);
+    const size_t payloadSize = packetBuffer_.size();
+    sendBuffer_.resize(headerSize + payloadSize);
+
+    std::memcpy(
+        &sendBuffer_[headerSize], // offset = 8 byte
+        packetBuffer_.data(),
+        payloadSize);
     nextTime_ = std::chrono::steady_clock::now();
 }
 
@@ -55,8 +63,8 @@ void TrafficScheduler::sendOne(const boost::system::error_code &ec) {
     const std::string packetString(packetBuffer_.begin(), packetBuffer_.end());
     const auto sendTime = std::chrono::system_clock::now();
     const auto timestamp = getTimestampInSeconds(sendTime);
-    std::string encodedPacket = encodeTimestampAndPayload(timestamp, packetBuffer_);
-    client_.send(encodedPacket);
+    std::memcpy(&sendBuffer_[0], &timestamp, sizeof(double));
+    client_.send(sendBuffer_);
     ++packetsSent_;
 
     // Compute delay until next send
@@ -68,20 +76,6 @@ void TrafficScheduler::sendOne(const boost::system::error_code &ec) {
     nextTime_ += delay;
     timer_.expires_at(nextTime_);
     timer_.async_wait([this](auto ec) { sendOne(ec); });
-}
-
-// Binary encode: double timestamp + payload → string
-std::string TrafficScheduler::encodeTimestampAndPayload(const double timestamp, const std::vector<uint8_t> &payload) {
-    std::string result;
-    result.resize(sizeof(double) + payload.size());
-
-    // write the timestamp as binary (first 8 bytes)
-    std::memcpy(&result[0], &timestamp, sizeof(double));
-
-    // append the payload data
-    std::memcpy(&result[sizeof(double)], payload.data(), payload.size());
-
-    return result;
 }
 
 double TrafficScheduler::getTimestampInSeconds(const std::chrono::system_clock::time_point timePoint) {

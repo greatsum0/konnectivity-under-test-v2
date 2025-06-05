@@ -28,7 +28,6 @@ namespace utils {
 
             keys.insert(m.key);
 
-            // m.value'ı sabit uzunlukta, virgülden sonra 2 basamak gösterir şekilde formatlıyoruz
             std::ostringstream valoss;
             valoss << std::fixed << std::setprecision(2) << m.value;
             table[ts][m.key] = valoss.str();

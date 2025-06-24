@@ -27,7 +27,10 @@ namespace utils {
             std::string ts = tos.str();
 
             keys.insert(m.key);
-            table[ts][m.key] = std::to_string(m.value);
+
+            std::ostringstream valoss;
+            valoss << std::fixed << std::setprecision(2) << m.value;
+            table[ts][m.key] = valoss.str();
         }
 
         // 2) Determine column widths

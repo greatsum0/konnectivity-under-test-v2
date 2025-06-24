@@ -13,6 +13,8 @@ struct AggregateSample {
     size_t packetsIn = 0;
     size_t packetsOut = 0;
     double throughputMbps = 0.0;
+    int64_t latency{};
+    double jitterUs = 0.0;
 };
 
 

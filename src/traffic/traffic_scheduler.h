@@ -1,4 +1,3 @@
-// src/traffic_scheduler.h
 #pragma once
 
 #include <boost/asio.hpp>
@@ -22,6 +21,8 @@ public:
 private:
     void sendOne(const boost::system::error_code &ec);
 
+    static double getTimestampInSeconds(std::chrono::system_clock::time_point timePoint);
+
     boost::asio::io_context &io_;
     INetworkClient &client_;
     ClientContext context_;
@@ -32,6 +33,7 @@ private:
     std::chrono::steady_clock::time_point nextTime_;
 
     std::vector<uint8_t> packetBuffer_;
+    std::string sendBuffer_; // [0..7]  timestamp, [8..]  payload
     size_t maxPackets_{};
     size_t packetsSent_{0};
     std::function<void()> onFinish_;

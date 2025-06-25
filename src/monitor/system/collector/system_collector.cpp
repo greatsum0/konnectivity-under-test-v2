@@ -4,17 +4,6 @@ SystemCollector::SystemCollector(std::vector<Metric> &store)
     : _store(store) {
 }
 
-void SystemCollector::onCpuSample(
-    std::chrono::system_clock::time_point ts,
-    double totalCpu,
-    double selfCpu
-) {
-    lastTotalCpu_ = totalCpu;
-    lastSelfCpu_ = selfCpu;
-
-    _store.push_back({ts, "cpu.util.host", totalCpu});
-    _store.push_back({ts, "cpu.util.self", selfCpu});
-}
 
 void SystemCollector::onCpuDetailSample(
     std::chrono::system_clock::time_point ts,

@@ -10,12 +10,6 @@ class SystemCollector : public IMetricCollector {
 public:
     explicit SystemCollector(std::vector<Metric> &store);
 
-    void onCpuSample(
-        std::chrono::system_clock::time_point ts,
-        double totalCpu,
-        double selfCpu
-    ) override;
-
     void onCpuDetailSample(
         std::chrono::system_clock::time_point ts,
         const std::vector<double> &perCore,

@@ -7,6 +7,7 @@
 #include <vector>
 #include <thread>          // sleep_until
 #include <future>          // promise, future
+#include <filesystem>
 
 /* ─────────── Project headers ─────────── */
 #include <logger.h>

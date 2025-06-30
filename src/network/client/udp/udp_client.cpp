@@ -1,109 +1,59 @@
 #include "udp_client.h"
+
+#include <burst_traffic_pattern.h>
 #include <iostream>
+#include "traffic_pattern_factory.h"
 
-using boost::asio::ip::udp;
-using ErrorCode = boost::system::error_code;
-
-UdpClient::UdpClient(boost::asio::io_context &io_context,
-                     const std::string &host,
-                     unsigned short port,
-                     ReceiveHandler handler)
-    : io_context_(io_context),
-      strand_(boost::asio::make_strand(io_context_)),
-      resolver_(io_context_),
-      socket_(io_context_),
-      host_(host),
-      port_(port),
-      receive_handler_(std::move(handler)), recv_buffer_() {
+UDPClient::UDPClient(boost::asio::io_context &ioContext, const std::size_t pktSize,
+                     std::unique_ptr<ITrafficPattern> pattern)
+    : client_interface(ioContext), payload_(pktSize, 0x54),
+      payloadBuf_(payload_.data(), payload_.size()),
+      pattern_(std::move(pattern)),
+      timer_(ioContext_) {
 }
 
-UdpClient::~UdpClient() {
-    UdpClient::stop();
+void UDPClient::start(const std::string &host, uint16_t port) {
+    if (!connect(host, port)) return;
+
+    /* wait until socket.connect() inside connection_ finishes */
+    while (!isConnected())
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    /* arm the periodic sender on the io_context thread */
+    nextTime_ = std::chrono::steady_clock::now();
+    timer_.expires_at(nextTime_);
+    timer_.async_wait([this](auto ec) { sendOne(ec); });
 }
 
-void UdpClient::start() {
-    if (state_ != State::Disconnected) return;
-    state_ = State::Resolving;
-    doResolve();
+void UDPClient::stop() {
+    timer_.cancel(); // stop asynchronous loop
+    disconnect(); // base-class cleanup + join
 }
 
-void UdpClient::send(const std::string &message) {
-    asio::post(strand_, [self = shared_from_this(), message]() {
-        bool wasEmpty = self->outbound_queue_.empty();
-        self->outbound_queue_.push_back(message);
-        // Only flush if we're already Ready
-        if (self->state_ == State::Ready && wasEmpty) {
-            self->doWrite();
-        }
-    });
+/* debug/echo callback */
+void UDPClient::onMessage(std::span<const std::byte> /*data*/) {
+    // std::cout.write(reinterpret_cast<const char*>(data.data()), data.size());
+    // std::cout << '\n';
 }
 
-void UdpClient::stop() {
-    asio::post(strand_, [this]() {
-        if (socket_.is_open()) socket_.close();
-        resolver_.cancel();
-        state_ = State::Disconnected;
-    });
-}
+void UDPClient::sendOne(const boost::system::error_code &ec) {
+    if (ec || !isConnected())
+        return; // cancelled / disconnected
 
-void UdpClient::setReceiveHandler(ReceiveHandler handler) {
-    receive_handler_ = std::move(handler);
-}
+    /* ── 1.  Write a 64-bit timestamp into the first 8 bytes ─────────── */
+    uint64_t tsNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+    ).count();
+    static_assert(sizeof(tsNs) == 8);
+    std::memcpy(payload_.data(), &tsNs, sizeof(tsNs)); // overwrite in place
 
-void UdpClient::doResolve() {
-    auto self = shared_from_this();
-    resolver_.async_resolve(host_, std::to_string(port_),
-                            asio::bind_executor(strand_,
-                                                [this, self](const ErrorCode &ec, udp::resolver::results_type results) {
-                                                    if (ec) {
-                                                        std::cerr << "UDP resolve error: " << ec.message() << "\n";
-                                                        state_ = State::Disconnected;
-                                                    } else {
-                                                        // Pick the first endpoint and open the socket
-                                                        server_endpoint_ = *results.begin();
-                                                        socket_.open(udp::v4());
-                                                        state_ = State::Ready;
+    /* ── 2.  Zero-copy send (payloadBuf_ already views payload_) ─────── */
+    send(payloadBuf_);
 
-                                                        // Begin receive loop
-                                                        doReceive();
-
-                                                        // Flush any queued writes
-                                                        if (!outbound_queue_.empty()) {
-                                                            doWrite();
-                                                        }
-                                                    }
-                                                }));
-}
-
-void UdpClient::doReceive() {
-    auto self = shared_from_this();
-    socket_.async_receive_from(
-        asio::buffer(recv_buffer_), server_endpoint_,
-        asio::bind_executor(strand_,
-                            [this, self](const ErrorCode &ec, std::size_t bytes_recvd) {
-                                if (ec) {
-                                    std::cerr << "UDP receive error: " << ec.message() << "\n";
-                                } else {
-                                    std::string msg(recv_buffer_.data(), bytes_recvd);
-                                    receive_handler_(msg);
-                                    doReceive();
-                                }
-                            }));
-}
-
-void UdpClient::doWrite() {
-    auto self = shared_from_this();
-    socket_.async_send_to(
-        asio::buffer(outbound_queue_.front()), server_endpoint_,
-        asio::bind_executor(strand_,
-                            [this, self](const ErrorCode &ec, std::size_t /*bytes*/) {
-                                if (ec) {
-                                    std::cerr << "UDP send error: " << ec.message() << "\n";
-                                } else {
-                                    outbound_queue_.pop_front();
-                                    if (!outbound_queue_.empty()) {
-                                        doWrite();
-                                    }
-                                }
-                            }));
+    /* ── 3.  Schedule next packet (unchanged) ─────────────────────────── */
+    const std::size_t pktSize = payload_.size();
+    const auto delay = pattern_->generateDelay(pktSize, 1);
+    nextTime_ += delay;
+    timer_.expires_at(nextTime_);
+    timer_.async_wait([this](auto err) { sendOne(err); });
 }

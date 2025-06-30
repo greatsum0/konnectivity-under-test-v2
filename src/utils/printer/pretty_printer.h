@@ -9,6 +9,6 @@ namespace utils {
     ///   2025-04-28… | 125M | 1004.5 | 5 | …
     class PrettyPrinter {
     public:
-        static void printPivotTable(const std::vector<Metric> &metrics);
+        static void printPivotTable(const std::vector<kut::measurement::Metric> &metrics);
     };
 } // namespace utils

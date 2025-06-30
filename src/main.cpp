@@ -1,13 +1,19 @@
-#include <arg_parser.h>
-#include <client_context.h>
-#include <client_session.h>
+#include <array>
+#include <chrono>
+#include <cstring>
 #include <iostream>
-#include <logger.h>
+#include <client_session.h>
+#include <arg_parser.h>
 #include <server_session.h>
-#include <string>
 #include <yaml_parser.h>
+#include "context.h"
 
-enum class Mode { Server, Client };
+#include "utils/logger.h"
+
+enum class Mode {
+    Server,
+    Client
+};
 
 static Mode parseMode(const std::string &s) {
     std::string lower{s};
@@ -22,34 +28,37 @@ static Mode parseMode(const std::string &s) {
     throw std::runtime_error("Unknown mode: " + s);
 }
 
+using namespace kut::context::io;
+using namespace kut::context;
+
 int main(const int argc, char **argv) {
     auto &log = Logger::instance();
     log.setLevel(LogLevel::DEBUG);
 
-    try {
-        const ArgumentParser parser(argc, argv);
-        const std::string configPath = parser.getConfig();
+    const kut::cli::io::ArgumentParser parser(argc, argv);
+    const std::string configPath = parser.getConfig();
+    const Mode mode = parseMode(parser.getMode());
 
-        if (const Mode mode = parseMode(parser.getMode()); mode == Mode::Client) {
-            log.info("Running in client mode");
-            const auto clientCtx = std::make_unique<ClientContext>(
-                YamlParser::parseClientContextFromFile(configPath)
+    switch (mode) {
+        case Mode::Client: {
+            log.info("Client mode selected");
+            const std::unique_ptr<client::Context> context = std::make_unique<client::Context>(
+                YamlReader::loadClientContextFromFile(configPath)
             );
-            ClientSession clientSession(*clientCtx);
-            return clientSession.run();
+            const kut::session::client::ClientSession clientSession(*context);
+            clientSession.run();
+            break;
         }
-        log.info("Running in server mode");
-        while (true) {
-            log.info("Starting a new session");
-            const auto serverCtx = std::make_unique<ServerContext>(
-                YamlParser::parseServerContextFromFile(configPath)
+        case Mode::Server: {
+            log.info("Server mode selected");
+            const std::unique_ptr<server::Context> context = std::make_unique<
+                server::Context>(
+                YamlReader::loadServerContextFromFile(configPath)
             );
-            ServerSession serverSession(*serverCtx);
-            const int success = serverSession.run();
-            log.info("Session finished with code: " + std::to_string(success));
+            const kut::session::server::ServerSession serverSession(*context);
+            serverSession.run();
+            break;
         }
-    } catch (const std::exception &e) {
-        log.error("Exception: " + std::string(e.what()));
-        return 1;
     }
+    return 0;
 }

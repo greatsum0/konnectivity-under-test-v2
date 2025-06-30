@@ -15,7 +15,7 @@ namespace utils {
         explicit PivotCSVWriter(std::string path);
 
         /// Emit the full CSV, overwriting any existing file.
-        void write(const std::vector<Metric> &metrics) const;
+        void write(const std::vector<kut::measurement::Metric> &metrics) const;
 
     private:
         std::string _path;

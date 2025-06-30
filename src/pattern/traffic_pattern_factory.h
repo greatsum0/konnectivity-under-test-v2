@@ -1,7 +1,7 @@
 #pragma once
 
 #include "itraffic_pattern.h"
-#include "client_context.h"
+#include "context.h"
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -17,63 +17,60 @@
 
 class TrafficPatternFactory {
 public:
-    static std::unique_ptr<ITrafficPattern> create(const ClientTrafficConfig &cfg) {
-        const auto &t = cfg.type;
+    static std::unique_ptr<ITrafficPattern> create(const kut::context::traffic::Config &trafficConfig) {
+        const auto &t = trafficConfig;
 
-        if (t == "constant") {
+        if (t.type() == "constant") {
             return std::make_unique<ConstantTrafficPattern>(
-                cfg.rateMbps
+                trafficConfig.constant().rate_mbps()
             );
         }
-        if (t == "burst") {
+        if (t.type() == "burst") {
             return std::make_unique<BurstTrafficPattern>(
-                cfg.rateMbps,
-                cfg.burstSizeMb,
-                cfg.burstDurationSec,
-                cfg.burstIntervalSec
+                trafficConfig.burst().rate_mbps(),
+                trafficConfig.burst().burst_size_mb(),
+                trafficConfig.burst().burst_duration_sec(),
+                trafficConfig.burst().burst_interval_sec()
             );
         }
-        if (t == "pure_burst") {
+        if (t.type() == "pure_burst") {
             return std::make_unique<PureBurstTrafficPattern>(
-                cfg.burstSizeMb,
-                cfg.burstDurationSec,
-                cfg.burstIntervalSec
+                trafficConfig.pure_burst().burst_size_mb(),
+                trafficConfig.pure_burst().burst_duration_sec(),
+                trafficConfig.pure_burst().burst_interval_sec()
             );
         }
-        if (t == "random_burst") {
+        if (t.type() == "random_burst") {
             return std::make_unique<RandomBurstTrafficPattern>(
-                cfg.rateMbps,
-                cfg.minBurstSizeMb,
-                cfg.maxBurstSizeMb,
-                cfg.minBurstDurationMs,
-                cfg.maxBurstDurationMs,
-                cfg.minBurstIntervalMs,
-                cfg.maxBurstIntervalMs,
-                static_cast<unsigned>(cfg.randomSeed)
+                trafficConfig.random_burst().rate_mbps(),
+                trafficConfig.random_burst().min_burst_size_mb(),
+                trafficConfig.random_burst().max_burst_size_mb(),
+                trafficConfig.random_burst().min_burst_duration_ms(),
+                trafficConfig.random_burst().max_burst_duration_ms(),
+                trafficConfig.random_burst().min_burst_interval_ms(),
+                trafficConfig.random_burst().max_burst_interval_ms(),
+                static_cast<unsigned>(trafficConfig.random_burst().random_seed())
             );
         }
-        if (t == "sinusoidal") {
-            auto &parameter = cfg;
-            double mean = parameter.rateMbps; // YAML: rate_mbps
-            double amplitude = parameter.amplitude; // YAML: amplitude
-            double frequency = parameter.frequency; // YAML: frequency (Hz)
-
+        if (t.type() == "sinusoidal") {
             return std::make_unique<SinusoidalTrafficPattern>(
-                mean, amplitude, frequency
+                trafficConfig.sinusoidal().rate_mbps(),
+                trafficConfig.sinusoidal().amplitude(),
+                trafficConfig.sinusoidal().frequency()
             );
         }
-        if (t == "ramp_up") {
+        if (t.type() == "ramp_up") {
             return std::make_unique<RampUpTrafficPattern>(
-                cfg.rateMbps,
-                cfg.rampUpTime
+                trafficConfig.ramp_up().rate_mbps(),
+                trafficConfig.ramp_up().ramp_up_time()
             );
         }
-        if (t == "ramp_down") {
+        if (t.type() == "ramp_down") {
             return std::make_unique<RampDownTrafficPattern>(
-                cfg.rateMbps,
-                cfg.rampDownTime
+                trafficConfig.ramp_down().rate_mbps(),
+                trafficConfig.ramp_down().ramp_down_time()
             );
         }
-        throw std::invalid_argument("Unknown traffic pattern type: " + t);
+        throw std::invalid_argument("Unknown traffic pattern type: " + t.type());
     }
 };

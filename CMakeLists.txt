@@ -31,36 +31,36 @@ endif ()
 # Collect all the .cpp sources under src/
 file(GLOB_RECURSE KUT_SOURCES
         ${PROJECT_SOURCE_DIR}/src/main.cpp
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/context/*.cpp
-        # ------------------------------------------------------------------
-        ${PROJECT_SOURCE_DIR}/src/controller/*.cpp
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
+        #        ${PROJECT_SOURCE_DIR}/src/controller/*.cpp
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/monitor/*.cpp
-        ${PROJECT_SOURCE_DIR}/src/monitor/network/*.cpp
-        ${PROJECT_SOURCE_DIR}/src/monitor/network/collector/*.cpp
-        ${PROJECT_SOURCE_DIR}/src/monitor/system/*.cpp
-        ${PROJECT_SOURCE_DIR}/src/monitor/system/collector/*.cpp
-        # ------------------------------------------------------------------
+        #        ${PROJECT_SOURCE_DIR}/src/monitor/network/*.cpp
+        #        ${PROJECT_SOURCE_DIR}/src/monitor/network/collector/*.cpp
+        #        ${PROJECT_SOURCE_DIR}/src/monitor/system/*.cpp
+        #        ${PROJECT_SOURCE_DIR}/src/monitor/system/collector/*.cpp
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/network/client/tcp/*.cpp
         ${PROJECT_SOURCE_DIR}/src/network/client/udp/*.cpp
         ${PROJECT_SOURCE_DIR}/src/network/server/tcp/*.cpp
         ${PROJECT_SOURCE_DIR}/src/network/server/udp/*.cpp
-        # ------------------------------------------------------------------
-        ${PROJECT_SOURCE_DIR}/src/parser/cli/*.cpp
-        ${PROJECT_SOURCE_DIR}/src/parser/yaml/*.cpp
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
+        #        ${PROJECT_SOURCE_DIR}/src/parser/cli/*.cpp
+        # ${PROJECT_SOURCE_DIR}/src/parser/yaml/*.cpp
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/pattern/*.cpp
         ${PROJECT_SOURCE_DIR}/src/pattern/burst/*.cpp
         ${PROJECT_SOURCE_DIR}/src/pattern/constant/*.cpp
         ${PROJECT_SOURCE_DIR}/src/pattern/ramp/*.cpp
         ${PROJECT_SOURCE_DIR}/src/pattern/sinusoidal/*.cpp
-        # ------------------------------------------------------------------
-        ${PROJECT_SOURCE_DIR}/src/session/client/*.cpp
-        ${PROJECT_SOURCE_DIR}/src/session/server/*.cpp
-        # ------------------------------------------------------------------
-        ${PROJECT_SOURCE_DIR}/src/traffic/*.cpp
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
+        #        ${PROJECT_SOURCE_DIR}/src/session/client/*.cpp
+        #        ${PROJECT_SOURCE_DIR}/src/session/server/*.cpp
+        #        # ------------------------------------------------------------------
+        #        ${PROJECT_SOURCE_DIR}/src/traffic/*.cpp
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/utils/*.cpp
         ${PROJECT_SOURCE_DIR}/src/utils/csv/*.cpp
         ${PROJECT_SOURCE_DIR}/src/utils/printer/*.cpp
@@ -79,41 +79,44 @@ target_include_directories(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME}
         PRIVATE
         ${PROJECT_SOURCE_DIR}/src
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/context
-        # ------------------------------------------------------------------
-        ${PROJECT_SOURCE_DIR}/src/controller
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
+        #        ${PROJECT_SOURCE_DIR}/src/controller
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/monitor
-        ${PROJECT_SOURCE_DIR}/src/monitor/network
-        ${PROJECT_SOURCE_DIR}/src/monitor/network/collector
-        ${PROJECT_SOURCE_DIR}/src/monitor/system
-        ${PROJECT_SOURCE_DIR}/src/monitor/system/collector
-        # ------------------------------------------------------------------
+        #        ${PROJECT_SOURCE_DIR}/src/monitor/network
+        #        ${PROJECT_SOURCE_DIR}/src/monitor/network/collector
+        #        ${PROJECT_SOURCE_DIR}/src/monitor/system
+        #        ${PROJECT_SOURCE_DIR}/src/monitor/system/collector
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/network/client/tcp
         ${PROJECT_SOURCE_DIR}/src/network/client/udp
         ${PROJECT_SOURCE_DIR}/src/network/server/tcp
         ${PROJECT_SOURCE_DIR}/src/network/server/udp
         ${PROJECT_SOURCE_DIR}/src/network/client
         ${PROJECT_SOURCE_DIR}/src/network/server
-        # ------------------------------------------------------------------
+        ${PROJECT_SOURCE_DIR}/src/network/control
+        ${PROJECT_SOURCE_DIR}/src/network
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/parser/cli
         ${PROJECT_SOURCE_DIR}/src/parser/yaml
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/pattern
         ${PROJECT_SOURCE_DIR}/src/pattern/burst
         ${PROJECT_SOURCE_DIR}/src/pattern/constant
         ${PROJECT_SOURCE_DIR}/src/pattern/ramp
         ${PROJECT_SOURCE_DIR}/src/pattern/sinusoidal
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
+        ${PROJECT_SOURCE_DIR}/src/session
         ${PROJECT_SOURCE_DIR}/src/session/client
         ${PROJECT_SOURCE_DIR}/src/session/server
-        # ------------------------------------------------------------------
-        ${PROJECT_SOURCE_DIR}/src/traffic
-        # ------------------------------------------------------------------
+        #        # ------------------------------------------------------------------
+        #        ${PROJECT_SOURCE_DIR}/src/traffic
+        #        # ------------------------------------------------------------------
         ${PROJECT_SOURCE_DIR}/src/utils
-        ${PROJECT_SOURCE_DIR}/src/utils/csv
-        ${PROJECT_SOURCE_DIR}/src/utils/printer
+        #        ${PROJECT_SOURCE_DIR}/src/utils/csv
+        #        ${PROJECT_SOURCE_DIR}/src/utils/printer
 
 )
 
@@ -127,7 +130,3 @@ target_link_libraries(${PROJECT_NAME}
         ${PCAP_LIB}
 )
 
-# Windows sockets fallback
-if (WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
-endif()

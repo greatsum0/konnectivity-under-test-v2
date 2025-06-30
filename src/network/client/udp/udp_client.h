@@ -1,59 +1,34 @@
-// udp_client.hpp
 #pragma once
 
-#include <boost/asio.hpp>
-#include <deque>
-#include <functional>
-#include <memory>
-#include <string>
-#include <array>
+#include "i_udp_client.h"        /* ← base class we wrote earlier */
 
-#include "inetwork_client.h"
+#include <vector>
+#include <cstdint>
+#include <chrono>
+#include <context.h>
+#include <itraffic_pattern.h>
 
-namespace asio = boost::asio;
-using udp = asio::ip::udp;
-using ErrorCode = boost::system::error_code;
+using namespace kut::net::udp::client;
 
-class UdpClient : public std::enable_shared_from_this<UdpClient>, public INetworkClient {
+class UDPClient final : public client_interface {
 public:
-    using ReceiveHandler = std::function<void(const std::string &)>;
 
-    UdpClient(asio::io_context &io_context,
-              const std::string &host,
-              unsigned short port,
-              ReceiveHandler handler);
+    explicit UDPClient(boost::asio::io_context &ioContext,std::size_t pktSize, std::unique_ptr<ITrafficPattern> pattern);
 
-    ~UdpClient() override;
+    void start(const std::string &host, uint16_t port);
 
-    /// Resolve remote host and start listening for replies
-    void start() override;
+    void stop();
 
-    /// Queue a datagram to send to the remote server
-    void send(const std::string &message) override;
-
-    /// Close the socket and cancel pending resolves
-    void stop() override;
-
-    void setReceiveHandler(ReceiveHandler handler) override;
+    /* optional echo */
+    void onMessage(std::span<const std::byte> data) override;
 
 private:
-    enum class State { Disconnected, Resolving, Ready };
+    void sendOne(const boost::system::error_code &ec);
 
-    void doResolve();
-
-    void doReceive();
-
-    void doWrite();
-
-    asio::io_context &io_context_;
-    asio::strand<asio::io_context::executor_type> strand_;
-    udp::resolver resolver_;
-    udp::socket socket_;
-    udp::endpoint server_endpoint_;
-    std::string host_;
-    unsigned short port_;
-    ReceiveHandler receive_handler_;
-    std::array<char, 1024> recv_buffer_;
-    std::deque<std::string> outbound_queue_;
-    State state_{State::Disconnected};
+    /* same data members */
+    std::vector<uint8_t> payload_;
+    boost::asio::const_buffer payloadBuf_;
+    std::unique_ptr<ITrafficPattern> pattern_;
+    boost::asio::steady_timer timer_;
+    std::chrono::steady_clock::time_point nextTime_;
 };

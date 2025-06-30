@@ -5,10 +5,10 @@
 #include "traffic_pattern_factory.h"
 
 UDPClient::UDPClient(boost::asio::io_context &ioContext, const std::size_t pktSize,
-                     std::unique_ptr<ITrafficPattern> pattern)
+                     std::unique_ptr<ITrafficPattern> &pattern)
     : client_interface(ioContext), payload_(pktSize, 0x54),
       payloadBuf_(payload_.data(), payload_.size()),
-      pattern_(std::move(pattern)),
+      pattern_(pattern),
       timer_(ioContext_) {
 }
 

@@ -13,7 +13,7 @@ using namespace kut::net::udp::client;
 class UDPClient final : public client_interface {
 public:
 
-    explicit UDPClient(boost::asio::io_context &ioContext,std::size_t pktSize, std::unique_ptr<ITrafficPattern> pattern);
+    explicit UDPClient(boost::asio::io_context &ioContext,std::size_t pktSize, std::unique_ptr<ITrafficPattern> &pattern);
 
     void start(const std::string &host, uint16_t port);
 
@@ -28,7 +28,7 @@ private:
     /* same data members */
     std::vector<uint8_t> payload_;
     boost::asio::const_buffer payloadBuf_;
-    std::unique_ptr<ITrafficPattern> pattern_;
+    std::unique_ptr<ITrafficPattern> &pattern_;
     boost::asio::steady_timer timer_;
     std::chrono::steady_clock::time_point nextTime_;
 };

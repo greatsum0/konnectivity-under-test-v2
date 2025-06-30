@@ -11,7 +11,7 @@
 class TCPClient final : public kut::net::tcp::client::client_interface {
 public:
 
-    explicit TCPClient(boost::asio::io_context &ioContext,std::size_t pktSize, std::unique_ptr<ITrafficPattern> pattern);
+    explicit TCPClient(boost::asio::io_context &ioContext,std::size_t pktSize, std::unique_ptr<ITrafficPattern> &pattern);
 
     void start(const std::string &host, uint16_t port);
 
@@ -26,7 +26,7 @@ private:
 
     std::vector<uint8_t> payload_;
     boost::asio::const_buffer payloadBuf_;
-    std::unique_ptr<ITrafficPattern> pattern_;
+    std::unique_ptr<ITrafficPattern> &pattern_;
     boost::asio::steady_timer timer_;
     std::chrono::steady_clock::time_point nextTime_;
 };

@@ -52,9 +52,11 @@ namespace kut::session::client {
         std::string contextYaml = context::io::YamlWriter::dumpClientContextToString(context);
         controlClient.sendCommand(control::Msg::Context, contextYaml); // announce presence
         /* ── 4) Traffic client + measurement tools ────────────────────── */
-        ClientT client(*trafficCtx,
-                       context.traffic().packet_size(),
-                       TrafficPatternFactory::create(context.traffic()));
+
+        // create traffic pattern
+        std::unique_ptr<ITrafficPattern> pattern = TrafficPatternFactory::create(context.traffic());
+
+        ClientT client(*trafficCtx,context.traffic().packet_size(),pattern);
 
         measurement::network::PacketSniffer sniffer(
             context.measurement().interface(),

@@ -1,23 +1,14 @@
 #pragma once
 /**
  * @file network.h
- * @brief Header-only packet sniffer that stores per-packet metrics in
- *        lock-free double buffers and exports them in the unified
- *        `Metric` format (see metric.h).
+ * @brief PacketSniffer – header‑only, C++20 + libpcap
  *
- * Requirements
- * ────────────
- *   • C++20
- *   • libpcap
- *
- * Notes
- * ─────
- *   • Time stamps are taken from a monotonic clock (`measurement::clock`)
- *     at callback arrival; wall-clock times from libpcap are used only
- *     for one-way-delay reconstruction.
- *   • Two buffers (`buffers_[2]`) implement single-producer / single-consumer
- *     semantics with an atomic index switch, eliminating locks on
- *     the hot path.
+ *   • Captures packets on a given interface/port and exposes per‑packet metrics
+ *     in the unified `Metric` format (see metric.h).
+ *   • Lock‑free double buffering (single‑producer / single‑consumer).
+ *   • Robust one‑way delay (OWD) reconstruction that works on Linux as well as
+ *     BSD/macOS loopback by parsing the actual link & transport headers instead
+ *     of hard‑coded offsets.
  */
 
 #include <pcap/pcap.h>
@@ -31,7 +22,14 @@
 #include <thread>
 #include <vector>
 
-#include "metric.h"   // Metric, clock, key::
+#if defined(__linux__)
+#   include <endian.h>   // be64toh()
+#else
+#   include <arpa/inet.h>
+#   define be64toh(x) ntohll(x)
+#endif
+
+#include "metric.h" // Metric, clock, key::
 
 namespace kut::measurement::network {
     class PacketSniffer {
@@ -40,8 +38,7 @@ namespace kut::measurement::network {
         static constexpr std::string_view kOwdKey = key::net_lat_owd;
 
     public:
-        PacketSniffer(std::string iface,
-                      uint16_t port,
+        PacketSniffer(std::string iface, uint16_t port,
                       int snaplen = 65'536,
                       int timeoutMs = 10)
             : iface_(std::move(iface)),
@@ -54,9 +51,7 @@ namespace kut::measurement::network {
 
         ~PacketSniffer() { stop(); }
 
-        // ──────────────────────────────────────────────────────────────
-        // Lifecycle
-        // ──────────────────────────────────────────────────────────────
+        /* ───────────────────────── life‑cycle ────────────────────────── */
         bool start() {
             if (running_.exchange(true)) return true; // already active
 
@@ -68,10 +63,12 @@ namespace kut::measurement::network {
                 return false;
             }
 
+            /* compile + install a BPF filter for the requested port */
             const std::string filter = "tcp port " + std::to_string(port_) +
                                        " or udp port " + std::to_string(port_);
             bpf_program prog{};
-            if (pcap_compile(handle_, &prog, filter.c_str(), 1, PCAP_NETMASK_UNKNOWN) != 0 ||
+            if (pcap_compile(handle_, &prog, filter.c_str(), 1,
+                             PCAP_NETMASK_UNKNOWN) != 0 ||
                 pcap_setfilter(handle_, &prog) != 0) {
                 fprintf(stderr, "[pcap] setfilter: %s\n", pcap_geterr(handle_));
                 cleanupPcap();
@@ -79,9 +76,29 @@ namespace kut::measurement::network {
             }
             pcap_freecode(&prog);
 
+            /* discover link‑layer header length once */
+            switch (pcap_datalink(handle_)) {
+                case DLT_NULL: linkHdrLen_ = 4;
+                    break; // BSD loopback
+                case DLT_EN10MB: linkHdrLen_ = 14;
+                    break; // Ethernet
+                case DLT_LINUX_SLL:
+                case DLT_LINUX_SLL2: linkHdrLen_ = 16;
+                    break; // Linux cooked
+                default:
+                    fprintf(stderr, "[pcap] unsupported DLT %d\n", pcap_datalink(handle_));
+                    cleanupPcap();
+                    return false;
+            }
+
+            /* remember the timestamp precision (µs or ns) */
+            tsMultiplierNs_ = (pcap_get_tstamp_precision(handle_) == PCAP_TSTAMP_PRECISION_NANO)
+                                  ? 1ULL
+                                  : 1'000ULL; // µs → ns
+
+            /* spawn capture loop */
             thread_ = std::thread([this] {
-                pcap_loop(handle_, 0,
-                          &PacketSniffer::pcapCallback,
+                pcap_loop(handle_, 0, &PacketSniffer::pcapCallback,
                           reinterpret_cast<u_char *>(this));
             });
             return true;
@@ -94,9 +111,7 @@ namespace kut::measurement::network {
             cleanupPcap();
         }
 
-        // ──────────────────────────────────────────────────────────────
-        // Consumer API
-        // ──────────────────────────────────────────────────────────────
+        /* ───────────────────────── consumer API ──────────────────────── */
         [[nodiscard]]
         std::vector<Metric> consume() {
             const int readIdx = activeIndex_.load(std::memory_order_acquire);
@@ -115,9 +130,7 @@ namespace kut::measurement::network {
         }
 
     private:
-        // ──────────────────────────────────────────────────────────────
-        // pcap helpers
-        // ──────────────────────────────────────────────────────────────
+        /* ──────────────────────── pcap helpers ───────────────────────── */
         static void pcapCallback(u_char *u,
                                  const pcap_pkthdr *hdr,
                                  const u_char *bytes) {
@@ -125,12 +138,12 @@ namespace kut::measurement::network {
             self->storeMetric(hdr, bytes);
         }
 
-        /* Single-producer push (no locks) */
+        /* Single‑producer push (no locks) */
         void storeMetric(const pcap_pkthdr *hdr, const u_char *bytes) {
             using clk = measurement::clock; // monotonic clock alias
             auto now = clk::now(); // arrival timestamp
 
-            // ── frame-length metric ─────────────────────────────────
+            /* ── frame‑length metric ─────────────────────────────────── */
             Metric m{
                 .ts = now,
                 .rel = 0.0, // filled below
@@ -147,37 +160,65 @@ namespace kut::measurement::network {
             buffers_[activeIndex_.load(std::memory_order_relaxed)]
                     .push_back(std::move(m));
 
-            // ── optional OWD metric (if sender timestamp present) ────
-            constexpr std::size_t kNullHdr = 4; // DLT_NULL header length
-            constexpr std::size_t kUdpTsOff = 0x20;
-            constexpr std::size_t kTcpTsOff = 0x38;
+            /* ── optional OWD metric (needs sender’s 64‑bit ns timestamp) ── */
+            /* locate IP header after the link‑layer header */
+            const std::size_t ipOff = linkHdrLen_;
+            if (hdr->caplen <= ipOff + 1) return; // not enough for version byte
+
+            const uint8_t ver = bytes[ipOff] >> 4;
+            std::size_t ipLen = 0;
+            uint8_t proto = 0;
+            std::size_t l4Off = 0;
+
+            if (ver == 4) {
+                ipLen = (bytes[ipOff] & 0x0F) * 4; // IHL in 32‑bit words
+                if (hdr->caplen <= ipOff + ipLen) return; // truncated
+                proto = bytes[ipOff + 9];
+                l4Off = ipOff + ipLen;
+            } else if (ver == 6) {
+                ipLen = 40; // fixed IPv6 basic header
+                if (hdr->caplen <= ipOff + ipLen) return;
+                proto = bytes[ipOff + 6];
+                l4Off = ipOff + ipLen;
+            } else {
+                return; // not IPv4/6
+            }
 
             uint64_t sendNs = 0;
             bool haveTs = false;
-            const auto proto = bytes[kNullHdr + 9]; // 0x06 = TCP, 0x11 = UDP
 
-            if (proto == 0x11 && hdr->caplen >= kUdpTsOff + sizeof(sendNs)) {
-                std::memcpy(&sendNs, bytes + kUdpTsOff, sizeof(sendNs));
-                haveTs = true;
-            } else if (proto == 0x06 && hdr->caplen >= kTcpTsOff + sizeof(sendNs)) {
-                std::memcpy(&sendNs, bytes + kTcpTsOff, sizeof(sendNs));
-                haveTs = true;
+            if (proto == 0x11) {
+                /* UDP */
+                const std::size_t tsPos = l4Off + 8; // UDP header = 8 B
+                if (hdr->caplen >= tsPos + sizeof(sendNs)) {
+                    std::memcpy(&sendNs, bytes + tsPos, sizeof(sendNs));
+                    sendNs = be64toh(sendNs);
+                    haveTs = true;
+                }
+            } else if (proto == 0x06) {
+                /* TCP */
+                const uint8_t dataOff = (bytes[l4Off + 12] >> 4) & 0xF; // 32‑bit words
+                const std::size_t tcpHdrLen = dataOff * 4;
+                const std::size_t tsPos = l4Off + tcpHdrLen;
+                if (hdr->caplen >= tsPos + sizeof(sendNs)) {
+                    std::memcpy(&sendNs, bytes + tsPos, sizeof(sendNs));
+                    sendNs = be64toh(sendNs);
+                    haveTs = true;
+                }
             }
 
             if (haveTs) {
-                const uint64_t capNs =
-                        static_cast<uint64_t>(hdr->ts.tv_sec) * 1'000'000'000ULL +
-                        static_cast<uint64_t>(hdr->ts.tv_usec) * 1'000ULL;
+                const uint64_t capNs = static_cast<uint64_t>(hdr->ts.tv_sec) * 1'000'000'000ULL +
+                                       static_cast<uint64_t>(hdr->ts.tv_usec) * tsMultiplierNs_;
 
                 uint64_t diffNs = (capNs > sendNs) ? (capNs - sendNs) : 0ULL;
-                if (diffNs > 1'000'000'000ULL) diffNs = 0ULL; // sanity clamp
 
                 Metric d{
                     .ts = now,
                     .rel = m.rel,
                     .key = kOwdKey,
-                    .value = static_cast<double>(diffNs) / 1'000'000.0 // → ms
-                };
+                    .value = static_cast<double>(diffNs) / 1'000'000.0
+                }; // ns → ms
                 buffers_[activeIndex_.load(std::memory_order_relaxed)]
                         .push_back(std::move(d));
             }
@@ -192,9 +233,7 @@ namespace kut::measurement::network {
             }
         }
 
-        // ──────────────────────────────────────────────────────────────
-        // Data members
-        // ──────────────────────────────────────────────────────────────
+        /* ─────────────────────── data members ───────────────────────── */
         std::string iface_;
         uint16_t port_;
         int snaplen_;
@@ -204,11 +243,16 @@ namespace kut::measurement::network {
         std::thread thread_;
         std::atomic<bool> running_{false};
 
+        /* lock‑free producer/consumer buffers */
         std::vector<Metric> buffers_[2];
         std::atomic<int> activeIndex_{0};
 
+        /* timestamp of first captured packet */
         measurement::clock::time_point firstTs_{};
         bool firstSeen_{false};
+
+        std::size_t linkHdrLen_{0}; // length of L2 header detected at start()
+        uint64_t tsMultiplierNs_{1'000}; // µs→ns (1'000) or ns (1)
 
         std::atomic<std::size_t> packetCount_{0};
     };

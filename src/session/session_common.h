@@ -64,6 +64,7 @@ namespace kut::session::common {
         double cpu_self = detail::NaN();
         double cpu_sot = detail::NaN();
         double cpu_soc = detail::NaN();
+        std::vector<double> cpu_core;
 
         /* derived network metrics in the interval up to next CPU sample */
         std::size_t pkts = 0; // packet count
@@ -124,6 +125,11 @@ namespace kut::session::common {
                 else if (m.key == measurement::key::cpu_self) cur.cpu_self = m.value;
                 else if (m.key == measurement::key::cpu_sot) cur.cpu_sot = m.value;
                 else if (m.key == measurement::key::cpu_soc) cur.cpu_soc = m.value;
+                else if (m.key.rfind("cpu.core.", 0) == 0) {
+                    const std::size_t idx = std::stoul(std::string(m.key.substr(9)));
+                    if (idx >= cur.cpu_core.size()) cur.cpu_core.resize(idx + 1, detail::NaN());
+                    cur.cpu_core[idx] = m.value;
+                }
                 continue;
             }
 
@@ -150,9 +156,18 @@ namespace kut::session::common {
 
     /*────────────────────────────  CSV helper  ────────────────────────────────*/
     inline void write_csv(const std::vector<Row> &rows, std::ostream &os) {
-        os << "ts,cpu.total,cpu.self,cpu.sot,cpu.soc,pkts,net.lat.owd.ms,net.pck.len,net.rate.mbps\n";
+        /* ─ determine max #cores seen ─ */
+        std::size_t maxC = 0;
+        for (auto &r: rows) maxC = std::max(maxC, r.cpu_core.size());
+
+        /* ─ header ─ */
+        os << "ts,cpu.total,cpu.self,cpu.sot,cpu.soc";
+        for (std::size_t i = 0; i < maxC; ++i) os << ",cpu.core." << i;
+        os << ",pkts,net.lat.owd.ms,net.pck.len,net.rate.mbps\n";
+
         os << std::fixed << std::setprecision(6);
 
+        /* ─ rows ─ */
         for (const auto &r: rows) {
             const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 r.ts.time_since_epoch()).count();
@@ -160,11 +175,13 @@ namespace kut::session::common {
                     << r.cpu_total << ','
                     << r.cpu_self << ','
                     << r.cpu_sot << ','
-                    << r.cpu_soc << ','
-                    << r.pkts << ','
-                    << r.net_lat_ms << ','
-                    << r.net_len << ','
-                    << r.net_rate << '\n';
+                    << r.cpu_soc;
+            for (std::size_t i = 0; i < maxC; ++i)
+                os << ',' << (i < r.cpu_core.size() ? r.cpu_core[i] : detail::NaN());
+            os << ',' << r.pkts
+                    << ',' << r.net_lat_ms
+                    << ',' << r.net_len
+                    << ',' << r.net_rate << '\n';
         }
     }
 } // namespace kut::session::common

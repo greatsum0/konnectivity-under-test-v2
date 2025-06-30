@@ -45,12 +45,20 @@ namespace kut::measurement::cpu {
         CPUUsageSnapshot snap;
 
         [[nodiscard]] std::vector<Metric> flatten(clock::time_point t0) const {
-            return {
+            std::vector<Metric> out = {
                 make(ts, t0, key::cpu_total, snap.totalUsage),
                 make(ts, t0, key::cpu_self, snap.selfUsage),
                 make(ts, t0, key::cpu_sot, snap.selfOverTotal),
                 make(ts, t0, key::cpu_soc, snap.selfOverCapacity)
             };
+
+            static std::vector<std::string> buf; // lifetime ≥ program
+            for (std::size_t i = 0; i < snap.perCoreUsage.size(); ++i) {
+                if (i >= buf.size()) buf.emplace_back(); // grow once
+                buf[i] = "cpu.core." + std::to_string(i); // e.g. "cpu.core.3"
+                out.push_back(make(ts, t0, buf[i], snap.perCoreUsage[i]));
+            }
+            return out;
         }
     };
 
@@ -123,9 +131,9 @@ namespace kut::measurement::cpu {
             perCore = readPerCoreUsages(total);
             self = readSelfCPUUsage();
 #else
-        perCore = mockCoreUsages();
-        total   = 75.0;
-        self    = mockSelfUsage();
+            perCore = mockCoreUsages();
+            total = 75.0;
+            self = mockSelfUsage();
 #endif
             const double sot = total > 0.0 ? (self / total) * 100.0 : 0.0;
             const double soc = !perCore.empty() ? (self / (perCore.size() * 100.0)) * 100.0 : 0.0;
@@ -209,17 +217,17 @@ namespace kut::measurement::cpu {
                        : 0.0;
         }
 #else   /* ─── portable mock path (non‑Linux) ─── */
-    static std::vector<double> mockCoreUsages() {
-        static std::default_random_engine rng{std::random_device{}()};
-        static std::uniform_real_distribution<double> d(10.0, 40.0);
-        return {d(rng), d(rng), d(rng), d(rng)};
-    }
+        static std::vector<double> mockCoreUsages() {
+            static std::default_random_engine rng{std::random_device{}()};
+            static std::uniform_real_distribution<double> d(10.0, 40.0);
+            return {d(rng), d(rng), d(rng), d(rng)};
+        }
 
-    static double mockSelfUsage() {
-        static std::default_random_engine rng{std::random_device{}()};
-        static std::uniform_real_distribution<double> d(5.0, 20.0);
-        return d(rng);
-    }
+        static double mockSelfUsage() {
+            static std::default_random_engine rng{std::random_device{}()};
+            static std::uniform_real_distribution<double> d(5.0, 20.0);
+            return d(rng);
+        }
 #endif /* __linux__ */
 
         /* ─────── members ─────── */

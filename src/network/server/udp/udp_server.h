@@ -6,7 +6,7 @@
 
 class UDPServer final : public kut::net::udp::server::server_interface {
 public:
-    explicit UDPServer(boost::asio::io_context &ioContext,uint16_t port);
+    explicit UDPServer(boost::asio::io_context &ioContext, uint16_t port);
 
 protected:
     void OnMessage(std::span<const std::byte> msg) override;
@@ -14,4 +14,10 @@ protected:
     bool OnClientConnect() override;
 
     void OnClientDisconnect() override;
+
+public:
+    void setDoneCallback(std::function<void()> done) override;
+
+private:
+    std::function<void()> done_;
 };

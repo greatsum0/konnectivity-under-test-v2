@@ -70,6 +70,14 @@ namespace kut::session::server {
         sniffer.start();
 
         ServerT server(*trafficCtx, context.network().endpoint().port());
+        // wake runListen() if the connection drops unexpectedly
+        /* wake runListen() if the connection drops unexpectedly
+           std::once_flag guarantees we call set_value() only once, even if
+           several internal events race to trigger the callback. */
+        std::once_flag doneOnce;
+        server.setDoneCallback([&] {
+            std::call_once(doneOnce, [&] { scenarioDonePromise.set_value(); });
+        });
 
         server.start();
 
@@ -134,16 +142,24 @@ namespace kut::session::server {
         }
 
         void run() const {
-            common::Protocol protocol = common::toProtocol(context_.network().protocol());
-            switch (protocol) {
-                case common::Protocol::Udp:
-                    runListen<UDPServer>(context_, protocol);
-                    break;
-                case common::Protocol::Tcp:
-                    runListen<TCPServer>(context_, protocol);
-                    break;
-                default:
-                    throw std::runtime_error("Unsupported protocol: " + context_.network().protocol());
+            const auto protocol = common::toProtocol(context_.network().protocol());
+            for (;;) {
+                // <── automatic restart loop
+                try {
+                    switch (protocol) {
+                        case common::Protocol::Udp:
+                            runListen<UDPServer>(context_, protocol);
+                            break;
+                        case common::Protocol::Tcp:
+                            runListen<TCPServer>(context_, protocol);
+                            break;
+                        default:
+                            throw std::runtime_error("Unsupported protocol: " + context_.network().protocol());
+                    }
+                } catch (const std::exception &e) {
+                    Logger::instance().error("Session crashed: {}", e.what());
+                }
+                Logger::instance().info("Session ended – restarting …");
             }
         }
 

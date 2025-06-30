@@ -18,7 +18,7 @@ namespace kut::net::tcp::server {
         }
 
         virtual ~server_interface() = default;
-
+        virtual void setDoneCallback(std::function<void()>) {}
         bool start() {
             try {
                 waitForClientConnection();

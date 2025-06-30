@@ -18,7 +18,7 @@ namespace kut::net::udp::server {
         }
 
         virtual ~server_interface() = default;
-
+        virtual void setDoneCallback(std::function<void()>) {}
         bool start() {
             try {
                 waitForClientConnection(); // bind + RX loop

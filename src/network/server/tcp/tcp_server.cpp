@@ -22,5 +22,9 @@ bool TCPServer::OnClientConnect() {
 
 void TCPServer::OnClientDisconnect() {
     Logger::instance().info("Client disconnected.");
-    Logger::instance().info("Waiting for new client connection...");
+    if (done_) done_();
+}
+
+void TCPServer::setDoneCallback(std::function<void()> done) {
+    done_ = std::move(done);
 }

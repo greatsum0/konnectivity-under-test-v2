@@ -122,7 +122,6 @@ namespace kut::measurement::cpu {
 #if __linux__
             perCore = readPerCoreUsages(total);
             self = readSelfCPUUsage();
-            std::cout << self<< "\n";
 #else
         perCore = mockCoreUsages();
         total   = 75.0;

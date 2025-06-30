@@ -37,7 +37,6 @@ namespace kut::net::udp::server {
             ioContext_.stop();
             // if (threadContext_.joinable())
             //     threadContext_.join();
-            std::cout << "Server stopped.\n";
         }
 
         void join() {

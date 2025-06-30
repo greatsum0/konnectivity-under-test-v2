@@ -37,7 +37,6 @@ namespace kut::net::tcp::server {
             ioContext_.stop();
             // if (threadContext_.joinable())
             //     threadContext_.join();
-            std::cout << "Server stopped.\n";
         }
 
         void send(boost::asio::const_buffer msg) const {
@@ -77,7 +76,6 @@ namespace kut::net::tcp::server {
             acceptor_.async_accept(
                 [this](std::error_code ec, boost::asio::ip::tcp::socket socket) {
                     if (!ec) {
-                        std::cout << "Client connected: " << socket.remote_endpoint() << '\n';
 
                         // *** single-client policy ***
                         if (connection_)
@@ -101,9 +99,8 @@ namespace kut::net::tcp::server {
                                 [this](const std::span<const std::byte> data) {
                                     OnMessage(data);
                                 });
-                            std::cout << "Client accepted.\n";
                         } else {
-                            std::cout << "Client rejected.\n";
+                            std::cerr << "Client rejected.\n";
                             socket.close(); // reject connection
                             connection_.reset();
                             waitForClientConnection(); // wait for next client

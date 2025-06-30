@@ -120,10 +120,16 @@ namespace kut::session::client {
             std::filesystem::create_directories(context.measurement().output_path());
         }
 
-        //filepath
-        std::string outputFile = context.measurement().output_path() + "/" + context.meta().name() + ".csv";
+        // now
+        const auto now = std::chrono::time_point_cast<std::chrono::seconds>(t0);
+        // convert type to string
+        std::string nowStr = std::to_string(now.time_since_epoch().count());
+
+        std::string outputFile = context.measurement().output_path() + "/" + nowStr + "_" + context.meta().name()
+                                 + ".csv";
         // 2. write to CSV (or inspect `result` programmatically)
         std::ofstream out(outputFile);
+        Logger::instance().info("Writing metrics to ", outputFile);
         write_csv(result, out);
     }
 

@@ -114,9 +114,15 @@ namespace kut::session::server {
             std::filesystem::create_directories(context.measurement().output_path());
         }
 
-        //filepath
-        std::string outputFile = context.measurement().output_path() + "/" + clientContext->meta().name() + ".csv";
+        // now
+        const auto now = std::chrono::time_point_cast<std::chrono::seconds>(t0);
+        // convert type to string
+        std::string nowStr = std::to_string(now.time_since_epoch().count());
+
+        std::string outputFile = context.measurement().output_path() + "/" + nowStr + "_" + clientContext->meta().name()
+                                 + ".csv";
         std::ofstream out(outputFile);
+        Logger::instance().info("Writing metrics to ", outputFile);
         write_csv(result, out);
     }
 

@@ -72,7 +72,7 @@ namespace kut::context {
             void endpoint(Endpoint ep) { endpoint_ = std::move(ep); }
 
         private:
-            std::string protocol_{"tcp"};
+            std::string protocol_{};
             Endpoint endpoint_{};
         };
     } // namespace network
@@ -123,7 +123,7 @@ namespace kut::context {
             void burst_interval_sec(double v) noexcept { burst_interval_sec_ = v; }
 
         private:
-            double rate_mbps_{0.0};
+            double rate_mbps_{};
             double burst_size_mb_{};
             double burst_duration_sec_{};
             double burst_interval_sec_{};
@@ -156,14 +156,14 @@ namespace kut::context {
             void random_seed(int v) noexcept { random_seed_ = v; }
 
         private:
-            double rate_mbps_{0.0};
+            double rate_mbps_{};
             double min_burst_size_mb_{};
             double max_burst_size_mb_{};
             double min_burst_duration_ms_{};
             double max_burst_duration_ms_{};
             double min_burst_interval_ms_{};
             double max_burst_interval_ms_{};
-            int random_seed_{0};
+            int random_seed_{};
         };
 
         class Sinusoidal {
@@ -178,7 +178,7 @@ namespace kut::context {
             void frequency(double v) noexcept { frequency_ = v; }
 
         private:
-            double rate_mbps_{0.0};
+            double rate_mbps_{};
             double amplitude_{};
             double frequency_{}; // Hz
         };
@@ -192,7 +192,7 @@ namespace kut::context {
             void ramp_up_time(double v) noexcept { ramp_up_time_ = v; }
 
         private:
-            double rate_mbps_{0.0};
+            double rate_mbps_{};
             double ramp_up_time_{}; // seconds
         };
 
@@ -205,7 +205,7 @@ namespace kut::context {
             void ramp_down_time(double v) noexcept { ramp_down_time_ = v; }
 
         private:
-            double rate_mbps_{0.0};
+            double rate_mbps_{};
             double ramp_down_time_{}; // seconds
         };
 
@@ -245,10 +245,10 @@ namespace kut::context {
             void type(std::string v) noexcept { type_ = std::move(v); }
 
         private:
-            double duration_sec_{10.0};
-            double interval_sec_{1.0};
-            std::string type_ {"constant"}; // Default traffic type
-            int packet_size_{1250}; // Default packet size in bytes
+            double duration_sec_{};
+            double interval_sec_{};
+            std::string type_ {};
+            int packet_size_{};
 
             Constant constant_{};
             Burst burst_{};
@@ -277,9 +277,9 @@ namespace kut::context {
 
 
         private:
-            double interval_sec_{1.0};
-            std::string output_path_{"metrics.csv"};
-            std::string interface_ {"eth0"};
+            double interval_sec_{};
+            std::string output_path_{};
+            std::string interface_ {};
             std::vector<std::string> metrics_;
         };
     } // namespace metric

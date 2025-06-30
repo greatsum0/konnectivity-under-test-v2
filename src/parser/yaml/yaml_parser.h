@@ -135,9 +135,8 @@ namespace kut::context::io {
             if (auto dur = node["duration_sec"]) trCfg.duration_sec(dur.as<double>());
             if (auto intv = node["interval_sec"]) trCfg.interval_sec(intv.as<double>());
             if (auto pcks = node["packet_size"]) trCfg.packet_size(pcks.as<int>());
-
-            // Select traffic pattern
-            const std::string type = node["type"].as<std::string>("constant");
+            const std::string type = node["type"] ? node["type"].as<std::string>() : "constant";
+            trCfg.type(type);   // ← remember the chosen pattern
 
             const YAML::Node params = node["parameters"];
 

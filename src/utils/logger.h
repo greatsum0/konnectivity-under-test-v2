@@ -47,7 +47,7 @@ public:
         out << levelToColor(lvl)
                 << oss.str()
                 << colorReset()
-                << "\n";
+                << std::endl;
     }
 
     // Convenience wrappers

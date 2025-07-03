@@ -46,7 +46,7 @@ namespace kut::session::client {
         });
 
         const int controlPort = context.network().endpoint().controlPort();
-        controlClient.connectAndRun("127.0.0.1", controlPort);
+        controlClient.connectAndRun(context.network().endpoint().address(), controlPort);
         Logger::instance().info("Control client connected to port ", controlPort);
 
         std::string contextYaml = context::io::YamlWriter::dumpClientContextToString(context);

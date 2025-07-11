@@ -10,22 +10,19 @@ import tempfile
 collection_bp = Blueprint("collection", __name__)
 
 @collection_bp.route("/collect/zip-api", methods=["POST"])
-def collect_zip_via_api():
-    # query: ?namespace=xyz
+def collect_zip_from_viewers():
     namespace = request.args.get("namespace", "kut-app")
-
-    # JSON: { "client_pod": "xxx", "client_path": "/measurements/client", ... }
-    data = request.get_json()
-    client_pod = data.get("client_pod")
-    client_path = data.get("client_path")
-    server_pod = data.get("server_pod")
-    server_path = data.get("server_path")
-
-    if not all([client_pod, client_path, server_pod, server_path]):
-        return jsonify({"status": "error", "message": "Missing fields in body"}), 400
 
     load_kube_config()
     core_v1 = k8s_client.CoreV1Api()
+
+    # Find all pods with label app=viewer
+    try:
+        pods = core_v1.list_namespaced_pod(namespace, label_selector="app=viewer").items
+        if not pods:
+            return jsonify({"status": "error", "message": "No viewer pods found"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
     zip_buffer = io.BytesIO()
 
@@ -46,7 +43,6 @@ def collect_zip_via_api():
                     _preload_content=False
                 )
 
-                # tar stream -> extract -> add to zip
                 with tempfile.TemporaryFile() as tar_stream:
                     while resp.is_open():
                         resp.update(timeout=1)
@@ -67,8 +63,8 @@ def collect_zip_via_api():
                 raise RuntimeError(f"Error copying from pod {pod_name}: {e}")
 
         try:
-            copy_from_pod(client_pod, client_path, "client")
-            copy_from_pod(server_pod, server_path, "server")
+            for pod in pods:
+                copy_from_pod(pod.metadata.name, "/mnt", pod.metadata.name)
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -77,5 +73,5 @@ def collect_zip_via_api():
         zip_buffer,
         mimetype="application/zip",
         as_attachment=True,
-        download_name=f"{namespace}_results.zip"
+        download_name=f"{namespace}_viewer_results.zip"
     )

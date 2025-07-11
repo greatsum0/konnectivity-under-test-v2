@@ -184,6 +184,8 @@ def _render_host_viewers(suite_yaml: dict) -> str:
             "metadata:",
             f"  name: viewer-{host.replace('.', '-')}",
             f"  namespace: {namespace}",
+            "  labels:",
+            "    app: viewer",
             "spec:",
             "  restartPolicy: Never",
             "  containers:",

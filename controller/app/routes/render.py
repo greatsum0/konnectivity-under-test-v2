@@ -218,6 +218,8 @@ def render_suite():
     client_yaml = _render_clients(suite_yaml, job_tpl, cfg_files)
     viewer_yaml = _render_host_viewers(suite_yaml)
 
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     server_path = MANIFEST_DIR / f"server_out-{ts}.yaml"
     client_path = MANIFEST_DIR / f"client_out-{ts}.yaml"

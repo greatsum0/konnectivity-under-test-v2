@@ -7,6 +7,7 @@ from .routes.scenarios import scenarios_bp
 from .routes.cluster import cluster_bp
 from .routes.collector import collection_bp
 from .routes.render import render_bp
+from .routes.apply import apply_bp
 
 def create_app():
     app = Flask(__name__)
@@ -19,4 +20,5 @@ def create_app():
     app.register_blueprint(cluster_bp)
     app.register_blueprint(collection_bp)
     app.register_blueprint(render_bp)
+    app.register_blueprint(apply_bp)
     return app

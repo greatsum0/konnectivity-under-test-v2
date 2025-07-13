@@ -50,7 +50,8 @@ def _render_servers(suite_yaml: dict, deploy_tpl: Template, cfg_files: Dict[str,
         ep["ip"] = scn["server"].get("host", ep.get("ip", "0.0.0.0"))
         ep["port"] = scn["server"].get("port", ep.get("port"))
         ep["control_port"] = scn["server"].get("control_port", ep.get("control_port"))
-
+        if "interface" in scn["client"]:
+            ep["interface"] = scn["client"]["interface"]
         patched = yaml.safe_dump(cfg_dict, sort_keys=False)
         docs.append(("""apiVersion: v1
 kind: ConfigMap
@@ -105,7 +106,8 @@ def _render_clients(suite_yaml: dict, job_tpl: Template, cfg_files: Dict[str, st
         ep["ip"] = scn["client"].get("host", ep.get("ip", "0.0.0.0"))
         ep["port"] = scn["client"].get("port", ep.get("port"))
         ep["control_port"] = scn["client"].get("control_port", ep.get("control_port"))
-
+        if "interface" in scn["server"]:
+            ep["interface"] = scn["server"]["interface"]
         patched = yaml.safe_dump(cfg_dict, sort_keys=False)
         docs.append(("""apiVersion: v1
 kind: ConfigMap

@@ -59,6 +59,11 @@ namespace kut::session::server {
         const int controlPort = context.network().endpoint().controlPort();
         control::ControlServer controlServer(controlCallback, *ctrlCtx, controlPort);
         controlServer.start();
+        /* 7) Traffic server (TCP or UDP) */
+        ServerT server(*trafficCtx, context.network().endpoint().port());
+        server.start();
+        Logger::instance().info("Server listening on port ",
+                                context.network().endpoint().port());
 
         std::thread controlThread([&controlServer] {
             try { controlServer.join(); } catch (const std::exception &e) {
@@ -84,8 +89,7 @@ namespace kut::session::server {
         cpuMonitor.start();
         sniffer.start();
 
-        /* 7) Traffic server (TCP or UDP) */
-        ServerT server(*trafficCtx, context.network().endpoint().port());
+
 
         /*    Notify runListen() if the client drops unexpectedly           */
         server.setDoneCallback([&] {
@@ -93,9 +97,7 @@ namespace kut::session::server {
                 scenarioDonePromise.set_value();
         });
 
-        server.start();
-        Logger::instance().info("Server listening on port ",
-                                context.network().endpoint().port());
+
 
         /* 8) Block until either DONE or disconnect */
         scenarioDoneFuture.wait();

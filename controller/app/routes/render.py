@@ -149,21 +149,21 @@ def _render_host_viewers(suite_yaml: dict) -> str:
 
     for scn in suite_yaml.get("scenarios", []):
         name = scn["name"]
-        if "host" in scn.get("server", {}):
-            host = scn["server"]["host"]
-            host_to_pvcs.setdefault(host, []).append({
+        if "name" in scn.get("server", {}):
+            node = scn["server"]["name"]
+            host_to_pvcs.setdefault(node, []).append({
                 "pvc": f"kut-pvc-server-{name}",
                 "mountPath": f"/mnt/{name}/server"
             })
-        if "host" in scn.get("client", {}):
-            host = scn["client"]["host"]
-            host_to_pvcs.setdefault(host, []).append({
+        if "name" in scn.get("client", {}):
+            node = scn["client"]["name"]
+            host_to_pvcs.setdefault(node, []).append({
                 "pvc": f"kut-pvc-client-{name}",
                 "mountPath": f"/mnt/{name}/client"
             })
 
     docs: List[str] = []
-    for host, mounts in host_to_pvcs.items():
+    for hostname, mounts in host_to_pvcs.items():
         vol_lines, mount_lines = [], []
         for idx, mnt in enumerate(mounts):
             vol_name = f"vol{idx}"
@@ -182,13 +182,13 @@ def _render_host_viewers(suite_yaml: dict) -> str:
                        "apiVersion: v1",
                        "kind: Pod",
                        "metadata:",
-                       f"  name: viewer-{host.replace('.', '-')}",
+                       f"  name: viewer-{hostname}",
                        f"  namespace: {namespace}",
                        "  labels:",
                        "    app: viewer",
                        "spec:",
                        f"  nodeSelector:",
-                       f"    kubernetes.io/hostname: {host}",
+                       f"    kubernetes.io/hostname: {hostname}",
                        "  restartPolicy: Never",
                        "  containers:",
                        "    - name: viewer",

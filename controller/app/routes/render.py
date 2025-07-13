@@ -179,25 +179,28 @@ def _render_host_viewers(suite_yaml: dict) -> str:
             ])
 
         pod_yaml = [
-            "apiVersion: v1",
-            "kind: Pod",
-            "metadata:",
-            f"  name: viewer-{host.replace('.', '-')}",
-            f"  namespace: {namespace}",
-            "  labels:",
-            "    app: viewer",
-            "spec:",
-            "  restartPolicy: Never",
-            "  containers:",
-            "    - name: viewer",
-            "      image: busybox",
-            "      command: ['sleep', '3600']",
-            "      volumeMounts:"
-        ] + mount_lines + ["  volumes:"] + vol_lines
+                       "apiVersion: v1",
+                       "kind: Pod",
+                       "metadata:",
+                       f"  name: viewer-{host.replace('.', '-')}",
+                       f"  namespace: {namespace}",
+                       "  labels:",
+                       "    app: viewer",
+                       "spec:",
+                       f"  nodeSelector:",
+                       f"    kubernetes.io/hostname: {host}",
+                       "  restartPolicy: Never",
+                       "  containers:",
+                       "    - name: viewer",
+                       "      image: busybox",
+                       "      command: ['sleep', '3600']",
+                       "      volumeMounts:"
+                   ] + mount_lines + ["  volumes:"] + vol_lines
 
         docs.append("\n".join(pod_yaml))
 
     return "\n---\n".join(docs) + "\n"
+
 
 @render_bp.route("/suite", methods=["POST"])
 def render_suite():

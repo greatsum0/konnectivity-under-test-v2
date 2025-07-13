@@ -1,5 +1,13 @@
 #include "tcp_client.h"
 
+static inline uint64_t toNetwork64(uint64_t value) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return __builtin_bswap64(value);
+#else
+    return value;
+#endif
+}
+
 TCPClient::TCPClient(boost::asio::io_context &ioContext, const std::size_t pktSize,
                      std::unique_ptr<ITrafficPattern> &pattern)
     : client_interface(ioContext), payload_(pktSize, 0x42),
@@ -40,8 +48,10 @@ void TCPClient::sendOne(const boost::system::error_code &ec) {
     uint64_t tsNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::system_clock::now().time_since_epoch()
     ).count();
-    static_assert(sizeof(tsNs) == 8);
-    std::memcpy(payload_.data(), &tsNs, sizeof(tsNs)); // overwrite in place
+
+    uint64_t netTsNs = toNetwork64(tsNs);  // convert to network byte order
+    std::memcpy(payload_.data(), &netTsNs, sizeof(netTsNs));
+
 
     /* ── 2.  Zero-copy send (payloadBuf_ already views payload_) ─────── */
     send(payloadBuf_);

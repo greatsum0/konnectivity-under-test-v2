@@ -53,6 +53,9 @@ def _render_servers(suite_yaml: dict, deploy_tpl: Template, cfg_files: Dict[str,
         if "interface" in scn["server"]:
             mc = cfg_dict.setdefault("server", {}).setdefault("metric_collection", {})
             mc["interface"] = scn["server"]["interface"]
+        if "scenario_name" in scn["server"]:
+            meta = cfg_dict.setdefault("server", {}).setdefault("meta", {})
+            meta["name"] = scn["server"]["scenario_name"]
         patched = yaml.safe_dump(cfg_dict, sort_keys=False)
         docs.append(("""apiVersion: v1
 kind: ConfigMap
@@ -110,6 +113,9 @@ def _render_clients(suite_yaml: dict, job_tpl: Template, cfg_files: Dict[str, st
         if "interface" in scn["client"]:
             mc = cfg_dict.setdefault("scenario", {}).setdefault("metric_collection", {})
             mc["interface"] = scn["client"]["interface"]
+        if "scenario_name" in scn["client"]:
+            meta = cfg_dict.setdefault("scenario", {}).setdefault("meta", {})
+            meta["name"] = scn["client"]["scenario_name"]
         patched = yaml.safe_dump(cfg_dict, sort_keys=False)
         docs.append(("""apiVersion: v1
 kind: ConfigMap

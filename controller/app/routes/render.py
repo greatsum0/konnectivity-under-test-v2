@@ -50,9 +50,9 @@ def _render_servers(suite_yaml: dict, deploy_tpl: Template, cfg_files: Dict[str,
         ep["ip"] = scn["server"].get("host", ep.get("ip", "0.0.0.0"))
         ep["port"] = scn["server"].get("port", ep.get("port"))
         ep["control_port"] = scn["server"].get("control_port", ep.get("control_port"))
-        if "interface" in scn["client"]:
-            mc = cfg_dict.setdefault("scenario", {}).setdefault("metric_collection", {})
-            mc["interface"] = scn["client"]["interface"]
+        if "interface" in scn["server"]:
+            mc = cfg_dict.setdefault("server", {}).setdefault("metric_collection", {})
+            mc["interface"] = scn["server"]["interface"]
         patched = yaml.safe_dump(cfg_dict, sort_keys=False)
         docs.append(("""apiVersion: v1
 kind: ConfigMap

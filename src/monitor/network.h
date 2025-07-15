@@ -62,7 +62,7 @@ namespace kut::measurement::network {
                 running_ = false;
                 return false;
             }
-
+            pcap_setdirection(handle_, PCAP_D_INOUT);
             /* compile + install a BPF filter for the requested port */
             const std::string filter = "tcp port " + std::to_string(port_) +
                                        " or udp port " + std::to_string(port_);

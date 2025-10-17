@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kut-deployment-server-{{ scenario.name }}               # UNIQUE per scenario
+  namespace: {{ suite.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kut-deployment-server-{{ scenario.name }}
+  template:
+    metadata:
+      labels:
+        app: kut-deployment-server-{{ scenario.name }}
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: {{ scenario.server.name }}      # pin to server node
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+
+      containers:
+        - name: kut-server
+          image: {{ defaults.image }}
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          command: ["/app/build/kut"]
+          args:
+            - "--mode"
+            - "server"
+            - "--config"
+            - "/app/config/{{ scenario.server.scenario }}"
+          volumeMounts:
+            - name: server-data
+              mountPath: /measurements/server
+            - name: config-volume
+              mountPath: /app/config
+
+      volumes:
+        - name: server-data
+          persistentVolumeClaim:
+            claimName: kut-pvc-server-{{ scenario.name }}
+        - name: config-volume
+          configMap:
+            name: kut-cm-deployment-server-{{ scenario.name }}
+
+      imagePullSecrets:
+        - name: kut-regcred

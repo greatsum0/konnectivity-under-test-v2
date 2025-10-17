@@ -1,0 +1,16 @@
+server:
+  meta:
+    name: "server2"
+  network:
+    protocol: "tcp"
+    endpoint:
+      ip: "192.168.0.179" # mandatory to provide, else warning
+      port: 60002 # mandatory to provide, else warning
+      control_port: 60003  # kontrol portu, isteğe bağlı ancak önerilir
+  metric_collection:
+    interface: "wlan0"  # Kullanılacak ağ arayüzü
+    interval_sec: 1  # Metrik toplama aralığı (saniye)
+    output_path: "/measurements/server"
+    metrics:
+      - cpu_logger
+      - network_logger

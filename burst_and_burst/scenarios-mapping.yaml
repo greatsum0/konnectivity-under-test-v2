@@ -1,0 +1,41 @@
+suite:
+  namespace: "kut-app"
+
+defaults:
+  image: "oguznagak/kut-tester:latest"
+  serverConfig: "server.yaml"
+  scenarioFile: "constant.yaml"
+  pvc:
+    name: "kut-measurements"
+    mountPath: "./measurements"
+    storage: "100Mi"  # default storage size for PVCs
+
+scenarios:
+  # ───────────── first test ──────────
+  - name: burst-ab
+    client:
+      name: raspberrypi-a                  # client and server are the same pod
+      scenario: burst2.yaml
+      host: 192.168.0.179 # ip adress of the target server
+      port: 6000  # port for the client, can be overridden
+      control_port: 6001  # control port for the client, can be overridden
+    server:
+      name: raspberrypi-b
+      host: 192.168.0.179
+      scenario: server2.yaml        # applies to the *whole* test
+      port: 6000  # port for the server, can be overridden
+      control_port: 6001  # control port for the server, can be overridden
+
+  - name: constant-ab
+    client:
+      name: raspberrypi-a                  # client and server are the same pod
+      scenario: burst1.yaml
+      host: 192.168.0.179 # ip adress of the target server
+      port: 6002  # port for the client, can be overridden
+      control_port: 6003  # control port for the client, can be overridden
+    server:
+      name: raspberrypi-b
+      host: 192.168.0.179
+      scenario: server1.yaml        # applies to the *whole* test
+      port: 6002  # port for the server, can be overridden
+      control_port: 6003  # control port for the server, can be overridden

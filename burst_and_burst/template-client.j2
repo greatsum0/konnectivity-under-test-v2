@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kut-job-client-{{ scenario.name }} 
+  namespace: {{ suite.namespace }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: kut-job-client-{{ scenario.name }}
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: {{ scenario.client.name }}
+      
+      restartPolicy: Never
+
+      containers:
+        - name: kut-client
+          image: {{ defaults.image }}
+          imagePullPolicy: Always
+          command: ["/app/build/kut"]
+          args:
+            - "--mode"
+            - "client"
+            - "--config"
+            - "/app/config/{{ scenario.client.scenario }}"
+          volumeMounts:
+            - name: client-data
+              mountPath: /measurements/client
+            - name: config-volume
+              mountPath: /app/config
+
+      volumes:
+        - name: client-data
+          persistentVolumeClaim:
+            claimName: kut-pvc-client-{{ scenario.name }}
+        - name: config-volume
+          configMap:
+            name: kut-cm-job-client-{{ scenario.name }}
+
+      imagePullSecrets:
+        - name: kut-regcred

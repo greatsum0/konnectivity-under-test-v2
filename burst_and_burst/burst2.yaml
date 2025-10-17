@@ -1,0 +1,27 @@
+scenario:
+  meta:
+    name: "burst-1mbps-20s"
+  network:
+    protocol: "tcp"
+    endpoint:
+      ip: "192.168.0.179"
+      port: 60004
+      control_port: 60005
+  traffic_pattern:
+    type: "burst"
+    duration_sec: 20
+    packet_size: 12500
+    parameters:
+      rate_mbps: 1
+      burst_size_mb: 0.5
+      burst_duration_sec: 1
+      burst_interval_sec: 2
+  metric_collection:
+    interval_sec: 1
+    interface: "eth0"           # default kept explicit
+    output_path: "/measurements/client"
+    metrics:
+      - total_cpu_util
+      - tool_cpu_util
+      - throughput
+      - bytes_transferred
